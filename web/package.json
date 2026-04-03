@@ -2,55 +2,49 @@
   "name": "web",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "check": "oxfmt --check . && oxlint",
-    "format": "oxfmt --write .",
-    "lint": "oxlint --fix .",
-    "db:migrate": "pnpm exec better-auth migrate --config ./lib/auth.ts --yes",
-    "db:generate": "pnpm exec better-auth generate --config ./lib/auth.ts"
+    "dev": "vite dev",
+    "build": "vite build",
+    "start": "node .output/server/index.mjs",
+    "check": "oxfmt --ignore-path ../.gitignore --check . '!src/routeTree.gen.ts' && oxlint --ignore-path ../.gitignore --ignore-pattern src/routeTree.gen.ts .",
+    "format": "oxfmt --ignore-path ../.gitignore --write . '!src/routeTree.gen.ts'",
+    "lint": "oxlint --ignore-path ../.gitignore --ignore-pattern src/routeTree.gen.ts ."
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
+    "@fontsource-variable/dm-sans": "^5.1.1",
+    "@fontsource-variable/jetbrains-mono": "^5.1.1",
     "@polar-sh/better-auth": "^1.8.3",
     "@polar-sh/sdk": "^0.47.0",
-    "@types/pg": "^8.20.0",
+    "@posthog/react": "^1.8.3",
+    "@tanstack/react-router": "^1.114.26",
+    "@tanstack/react-start": "^1.114.26",
+    "@unpic/react": "^1.0.2",
     "better-auth": "^1.5.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-react": "^1.6.0",
-    "next": "16.2.2",
-    "next-themes": "^0.4.6",
+    "lucide-react": "^1.7.0",
+    "nitro": "3.0.260311-beta",
     "pg": "^8.20.0",
-    "posthog-js": "^1.363.5",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
+    "posthog-node": "^5.28.11",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "shadcn": "^4.1.2",
     "sonner": "^2.0.7",
+    "srvx": "^0.11.15",
     "tailwind-merge": "^3.5.0",
     "tw-animate-css": "^1.4.0",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
-    "@better-auth/cli": "^1.4.21",
-    "@tailwindcss/postcss": "^4.2.2",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19",
-    "oxfmt": "^0.43.0",
-    "oxlint": "^1.58.0",
-    "tailwindcss": "^4.2.2"
-  },
-  "ignoreScripts": [
-    "sharp",
-    "unrs-resolver"
-  ],
-  "trustedDependencies": [
-    "core-js",
-    "msw",
-    "protobufjs",
-    "sharp",
-    "unrs-resolver"
-  ]
+    "@tailwindcss/vite": "^4.2.2",
+    "@types/node": "^25.5.2",
+    "@types/pg": "^8.20.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "tailwindcss": "^4.2.2",
+    "vite": "^8.0.3"
+  }
 }

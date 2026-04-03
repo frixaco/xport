@@ -117,7 +117,7 @@ Core runtime:
 - `X_API_URL` — Social API base URL
 - `X_API_KEY` (or `API_KEY`)
 - `BETTER_AUTH_URL`
-- `NEXT_PUBLIC_SITE_URL` (recommended)
+- `SITE_URL` (recommended)
 
 OAuth:
 
@@ -137,6 +137,18 @@ Polar:
 
 Production target: `https://xport.frixaco.com`
 
+Runtime:
+
+- Node `24.x` (from root `package.json` `engines`)
+- pnpm `10.x`
+- Build command: `pnpm build`
+- Start command: `pnpm start`
+
+App output:
+
+- TanStack Start + Nitro
+- server entry: `web/.output/server/index.mjs`
+
 Typical flow:
 
 ```bash
@@ -152,6 +164,12 @@ Set/update env:
 railway variable set KEY="value"
 ```
 
+Public app env names:
+
+- `SITE_URL`
+- `PUBLIC_POSTHOG_KEY`
+- `PUBLIC_POSTHOG_HOST`
+
 Run commands with deployed env:
 
 ```bash
@@ -161,8 +179,8 @@ railway run -- pnpm run db:migrate
 ## Quality Checks
 
 ```bash
-pnpm run check   # runs tsc + oxfmt + oxlint via filter
-pnpm run lint    # oxlint --fix
+pnpm run check   # oxfmt + oxlint via filter
+pnpm run lint    # oxlint
 pnpm run format  # oxfmt --write
 ```
 

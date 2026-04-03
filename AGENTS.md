@@ -11,11 +11,28 @@ Use pnpm for package management.
 
 ## Codebase Conventions
 
-- Framework: Next.js App Router. Prefer server components by default; use client components only when needed.
+- Framework: Tanstack Start (file-based routing, SSR via Nitro). Prefer server-side hooks (`beforeLoad`, `loader`) by default; client components only when needed.
 - UI: shadcn/ui + Tailwind. Prefer existing components; keep styling consistent.
 - Prefer shared utility modules for formatting and parsing logic.
 - URL parsing: centralize in a single module (avoid duplicating parser logic in UI components).
 - API calls: route through a shared API client module or API routes.
+- **SSR redirect pattern:** `redirect()` called from a route `component` does NOT send an HTTP redirect — it runs after SSR. For server-side redirects, call `redirect()` from `beforeLoad` or `loader` (throws a proper 307).
+
+## Direct-Export Redirect
+
+The `/$sourceHost/$` route handles `/x.com/...` and `/twitter.com/...` URLs. It must use a `beforeLoad` hook to perform the redirect server-side:
+
+```tsx
+export const Route = createFileRoute("/$sourceHost/$")({
+  beforeLoad: ({ params, search }) => {
+    // redirect() here works for SSR — throws a 307 HTTP response
+    throw redirect({ to: "/", search: { input: sourceUrl } });
+  },
+  component: () => null,
+});
+```
+
+**Never** use `redirect()` inside the `component` function — it won't propagate as an HTTP redirect.
 
 ## SEO & Metadata Scope (Current)
 
@@ -34,7 +51,7 @@ Use pnpm for package management.
 
 - **Hosting:** Railway (long-running Node.js process, not serverless)
 - **Domain:** `xport.frixaco.com` (CNAME → Railway)
-- **Database:** PostgreSQL on Railway (same project, private networking)
+- **Database:** PostgreSQL on Railway (xport-db service)
 - **Previous:** Vercel (removed — serverless incompatible with background fetch jobs)
 
 ### Railway CLI
@@ -44,12 +61,18 @@ Use pnpm for package management.
 - `railway variable set KEY="value"` — set env vars
 - `railway up --detach` — deploy from local (use for manual deploys)
 - `railway logs` — view deploy/runtime logs
-- `railway run -- <cmd>` — run command with Railway env vars locally
+- `railway run -- <cmd>` — run a local command with Railway env vars injected
+- `railway service status` — check if deploy is SUCCESS/FAILING/BUILDING
+- `railway connect <service-name>` — connect to a database service (requires psql installed locally)
+
+### After Deploying
+
+After `railway up --detach`, **always** wait for `railway service status` to show `SUCCESS` before testing. Deploys are not instant.
 
 ### Migrations
 
 - better-auth migrations: `pnpm run db:migrate`
-- Custom SQL migrations (e.g. fetch jobs tables): `railway run -- node -e "const fs=require('fs');const{Pool}=require('pg');const sql=fs.readFileSync('migrations/<file>.sql','utf8');const pool=new Pool({connectionString:process.env.DATABASE_URL});pool.query(sql).then(()=>{console.log('done');pool.end()}).catch(e=>{console.error(e);pool.end();process.exit(1)})"`
+- Custom SQL migrations (e.g. fetch jobs tables): `railway connect xport-db` then run SQL directly
 - Migration files live in `migrations/`
 
 ### Env Vars
@@ -136,11 +159,36 @@ Filename expectations:
   - no unhandled exceptions/crashes for tested flows
   - startup `Ready in Xms` present after deploy
   - "Failed to find Server Action" after deploy can be stale clients
-- Jobs table: `xport_fetch_jobs`
-  - `railway run -- node -e "const{Pool}=require('pg');const pool=new Pool({connectionString:process.env.DATABASE_URL});pool.query(\"SELECT id,request_type,status,stop_requested,pages_fetched,raw_fetched_tweets,stored_tweets,charged_credits,created_at FROM xport_fetch_jobs ORDER BY created_at DESC LIMIT 10\").then(r=>{console.log(JSON.stringify(r.rows,null,2));pool.end()}).catch(e=>{console.error(e);pool.end();process.exit(1)})"`
-  - stopped run: `status='stopped'`, `stop_requested=true`
-  - completed run: `status='completed'`
-  - failed partial run (if occurs): `status='failed'` with `stored_tweets > 0` and exported filenames include `-partial`
+- Jobs table: `railway connect xport-db` (requires psql installed), then:
+
+```sql
+SELECT id, request_type, status, stop_requested, pages_fetched, raw_fetched_tweets, stored_tweets, charged_credits, created_at
+FROM xport_fetch_jobs
+ORDER BY created_at DESC LIMIT 10;
+```
+
+- stopped run: `status='stopped'`, `stop_requested=true`
+- completed run: `status='completed'`
+- failed partial run (if occurs): `status='failed'` with `stored_tweets > 0` and exported filenames include `-partial`
+
+### Chrome MCP Troubleshooting
+
+When a page is blank or looks wrong:
+
+- `chrome-devtools_take_snapshot` — see what elements are on the page
+- `chrome-devtools_list_console_messages` — check for JS errors
+- `chrome-devtools_list_network_requests` with `resourceTypes: ["document", "fetch"]` — check if requests succeeded or returned unexpected status codes
+- `chrome-devtools_evaluate_script` with `() => window.location.href` — check the current URL (useful for verifying redirects)
+- `chrome-devtools_evaluate_script` with `() => navigator.clipboard.readText()` — read clipboard content
+
+### Direct-export deep link verification
+
+For `https://xport.frixaco.com/x.com/...` URLs:
+
+1. Navigate to the URL — the browser should redirect to `/?input=...` (visible in URL bar)
+2. The page should render with the input pre-filled and auto-start fetching
+3. For background jobs (thread/user), the URL should eventually include `jobId`
+4. If the page is blank, check `chrome-devtools_list_console_messages` for errors and network requests for redirect status codes
 
 ---
 
