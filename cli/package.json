@@ -15,6 +15,10 @@
     "fetch-replies": "tsx fetch-replies.ts",
     "fetch-followings": "tsx fetch-followings.ts",
     "fetch-bookmarks": "tsx fetch-bookmarks.ts",
-    "fetch-user-tweets-via-mentions": "tsx fetch-user-tweets-via-mentions.ts"
+    "fetch-user-tweets-via-mentions": "tsx fetch-user-tweets-via-mentions.ts",
+    "add-to-list": "tsx add-to-list.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.22.4"
   }
 }

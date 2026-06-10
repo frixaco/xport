@@ -1,17 +1,63 @@
 import { mkdir, writeFile } from "node:fs/promises";
 
-const API_KEY = process.env.API_KEY!;
-const X_API_URL = process.env.X_API_URL!;
+const X_API_KEY = process.env.X_API_KEY;
+const X_API_URL = process.env.X_API_URL;
+if (!X_API_KEY) throw new Error("X_API_KEY environment variable is required");
+if (!X_API_URL) throw new Error("X_API_URL environment variable is required");
 
 interface Tweet {
   id: string;
+  url?: string;
+  twitterUrl?: string;
   text: string;
   createdAt: string;
-  author?: { userName: string };
+  source?: string;
+  lang?: string;
+  author?: {
+    userName: string;
+    twitterUrl?: string;
+    name?: string;
+    isVerified?: boolean;
+    isBlueVerified?: boolean;
+    verifiedType?: string;
+    profilePicture?: string;
+    canMediaTag?: boolean;
+  };
+  likeCount?: number;
+  retweetCount?: number;
+  replyCount?: number;
+  quoteCount?: number;
+  viewCount?: number;
+  bookmarkCount?: number;
+  isReply?: boolean;
+  isLimitedReply?: boolean;
   inReplyToId?: string;
+  inReplyToUserId?: string;
   inReplyToUsername?: string;
+  conversationId?: string;
+  displayTextRange?: number[];
+  extendedEntities?: {
+    media?: Array<{
+      type: string;
+      media_url_https?: string;
+      url?: string;
+      video_info?: {
+        variants?: Array<{ url: string; bitrate?: number }>;
+      };
+    }>;
+  };
+  entities?: {
+    hashtags?: Array<{ text: string }>;
+    urls?: Array<{ url: string; expanded_url: string }>;
+    user_mentions?: Array<{ screen_name: string }>;
+  };
   isQuote?: boolean;
   quoted_tweet?: Tweet | null;
+  retweeted_tweet?: Tweet | null;
+  card?: object;
+  place?: object;
+  communityInfo?: object;
+  article?: object;
 }
 
 interface ExtractedPost {
@@ -37,9 +83,16 @@ async function searchMentions(
   if (cursor) url.searchParams.set("cursor", cursor);
 
   const response = await fetch(url.toString(), {
-    headers: { "X-API-Key": API_KEY },
+    headers: { "X-API-Key": X_API_KEY },
   });
-  return response.json() as any;
+  const json = (await response.json()) as any;
+  if (!response.ok) {
+    console.error("API Response:", JSON.stringify(json, null, 2));
+    throw new Error(
+      `API error: ${response.status} - ${json.msg || json.message || "Unknown error"}`,
+    );
+  }
+  return json;
 }
 
 async function fetchTweetsByIds(ids: string[]): Promise<Tweet[]> {
@@ -48,9 +101,15 @@ async function fetchTweetsByIds(ids: string[]): Promise<Tweet[]> {
   url.searchParams.set("tweet_ids", ids.join(","));
 
   const response = await fetch(url.toString(), {
-    headers: { "X-API-Key": API_KEY },
+    headers: { "X-API-Key": X_API_KEY },
   });
   const json = (await response.json()) as any;
+  if (!response.ok) {
+    console.error("API Response:", JSON.stringify(json, null, 2));
+    throw new Error(
+      `API error: ${response.status} - ${json.msg || json.message || "Unknown error"}`,
+    );
+  }
   return json.tweets || [];
 }
 

@@ -1,8 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, extname } from "node:path";
 
-const API_KEY = process.env.API_KEY!;
-const X_API_URL = process.env.X_API_URL!;
+const X_API_KEY = process.env.X_API_KEY;
+const X_API_URL = process.env.X_API_URL;
+if (!X_API_KEY) throw new Error("X_API_KEY environment variable is required");
+if (!X_API_URL) throw new Error("X_API_URL environment variable is required");
 const BASE_URL = X_API_URL + "/twitter/article";
 
 interface InlineStyleRange {
@@ -59,6 +61,7 @@ interface ArticleContent {
 }
 
 interface Article {
+  id?: string;
   author: Author;
   replyCount?: number;
   likeCount?: number;
@@ -95,7 +98,7 @@ async function fetchArticle(tweetId: string): Promise<Article> {
 
   const response = await fetch(url.toString(), {
     method: "GET",
-    headers: { "X-API-Key": API_KEY },
+    headers: { "X-API-Key": X_API_KEY },
   });
 
   const json = (await response.json()) as ArticleResponse;
@@ -210,6 +213,9 @@ function generateMarkdown(article: Article, originalUrl: string): string {
   const createdDate = new Date().toISOString().split("T")[0];
 
   let md = "---\n";
+  if (article.id) {
+    md += `article_id: "${article.id}"\n`;
+  }
   md += `title: "${article.title.replace(/"/g, '\\"')}"\n`;
   md += `source: "${originalUrl}"\n`;
   md += "author:\n";
@@ -336,11 +342,6 @@ async function downloadAllImages(
 }
 
 async function main() {
-  if (!API_KEY) {
-    console.error("Error: API_KEY environment variable is required");
-    process.exit(1);
-  }
-
   const input = process.argv[2];
   if (!input) {
     console.error("Usage: node fetch-article.ts <tweet-url-or-id>");

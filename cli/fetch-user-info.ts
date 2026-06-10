@@ -1,13 +1,17 @@
-const API_KEY = process.env.API_KEY!;
-const X_API_URL = process.env.X_API_URL!;
+const X_API_KEY = process.env.X_API_KEY;
+const X_API_URL = process.env.X_API_URL;
+if (!X_API_KEY) throw new Error("X_API_KEY environment variable is required");
+if (!X_API_URL) throw new Error("X_API_URL environment variable is required");
 const BASE_URL = X_API_URL + "/twitter/user/info";
 
 interface UserData {
   type: string;
   userName: string;
   url: string;
+  twitterUrl?: string;
   id: string;
   name: string;
+  isVerified?: boolean;
   isBlueVerified: boolean;
   verifiedType?: string;
   profilePicture: string;
@@ -17,11 +21,32 @@ interface UserData {
   followers: number;
   following: number;
   canDm: boolean;
+  canMediaTag?: boolean;
   createdAt: string;
   favouritesCount: number;
   mediaCount: number;
   statusesCount: number;
+  fastFollowersCount?: number;
+  protected?: boolean;
+  isAutomated?: boolean;
+  automatedBy?: string | null;
+  unavailable?: boolean;
+  message?: string;
+  unavailableReason?: string;
   pinnedTweetIds?: string[];
+  withheldInCountries?: string[];
+  affiliatesHighlightedLabel?: object;
+  profile_bio?: {
+    description?: string;
+    entities?: {
+      description?: { urls?: Array<Record<string, unknown>> };
+      url?: { urls?: Array<Record<string, unknown>> };
+    };
+  };
+  entities?: {
+    description?: { urls?: Array<Record<string, unknown>> };
+    url?: { urls?: Array<Record<string, unknown>> };
+  };
 }
 
 interface ApiResponse {
@@ -35,7 +60,7 @@ async function fetchUserInfo(userName: string): Promise<UserData> {
 
   const response = await fetch(url.toString(), {
     method: "GET",
-    headers: { "X-API-Key": API_KEY },
+    headers: { "X-API-Key": X_API_KEY },
   });
 
   const json = (await response.json()) as ApiResponse;

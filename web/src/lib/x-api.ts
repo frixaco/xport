@@ -168,7 +168,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 function getDefaultApiKey(): string {
-  const apiKey = process.env.X_API_KEY ?? process.env.API_KEY;
+  const apiKey = process.env.X_API_KEY;
   if (!apiKey) {
     throw new XApiError("Social API key is not configured on the server.", 500);
   }

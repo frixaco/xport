@@ -2,13 +2,14 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join, extname } from "node:path";
 import { spawn } from "node:child_process";
 
-const X_API_URL = process.env.X_API_URL!;
+const X_API_KEY = process.env.X_API_KEY;
+const X_API_URL = process.env.X_API_URL;
+if (!X_API_KEY) throw new Error("X_API_KEY environment variable is required");
+if (!X_API_URL) throw new Error("X_API_URL environment variable is required");
 const BASE_URL = X_API_URL + "/twitter/tweet/thread_context";
 
 function getApiKey(): string {
-  const key = process.env.API_KEY;
-  if (!key) throw new Error("API_KEY environment variable is required");
-  return key;
+  return X_API_KEY;
 }
 
 // ============ Types ============
@@ -16,12 +17,38 @@ function getApiKey(): string {
 interface Author {
   type: string;
   userName: string;
+  twitterUrl?: string;
   id: string;
   name: string;
   profilePicture?: string;
+  isVerified?: boolean;
   isBlueVerified?: boolean;
+  verifiedType?: string;
   followers?: number;
   following?: number;
+  canDm?: boolean;
+  canMediaTag?: boolean;
+  fastFollowersCount?: number;
+  protected?: boolean;
+  isAutomated?: boolean;
+  automatedBy?: string | null;
+  unavailable?: boolean;
+  message?: string;
+  unavailableReason?: string;
+  pinnedTweetIds?: string[];
+  withheldInCountries?: string[];
+  affiliatesHighlightedLabel?: object;
+  profile_bio?: {
+    description?: string;
+    entities?: {
+      description?: { urls?: Array<Record<string, unknown>> };
+      url?: { urls?: Array<Record<string, unknown>> };
+    };
+  };
+  entities?: {
+    description?: { urls?: Array<Record<string, unknown>> };
+    url?: { urls?: Array<Record<string, unknown>> };
+  };
 }
 
 interface MediaItem {
@@ -37,6 +64,7 @@ interface ThreadTweet {
   type: string;
   id: string;
   url: string;
+  twitterUrl?: string;
   text: string;
   source?: string;
   createdAt: string;
@@ -49,8 +77,12 @@ interface ThreadTweet {
   viewCount?: number;
   bookmarkCount?: number;
   isReply?: boolean;
+  isLimitedReply?: boolean;
   inReplyToId?: string;
+  inReplyToUserId?: string;
+  inReplyToUsername?: string;
   conversationId?: string;
+  displayTextRange?: number[];
   extendedEntities?: {
     media?: MediaItem[];
   };
@@ -59,6 +91,12 @@ interface ThreadTweet {
     urls?: Array<{ url: string; expanded_url: string }>;
     user_mentions?: Array<{ screen_name: string }>;
   };
+  quoted_tweet?: ThreadTweet | null;
+  retweeted_tweet?: ThreadTweet | null;
+  card?: object;
+  place?: object;
+  communityInfo?: object;
+  article?: object;
 }
 
 interface ThreadContextResponse {
@@ -72,6 +110,7 @@ interface ThreadContextResponse {
 interface ProcessedTweet {
   id: string;
   url: string;
+  twitterUrl?: string;
   date: string;
   author: {
     name: string;
@@ -79,6 +118,8 @@ interface ProcessedTweet {
     verified: boolean;
   };
   text: string;
+  source?: string;
+  lang?: string;
   media: Array<{ type: "image" | "video"; url: string }>;
   engagement: {
     likes: number;
@@ -86,8 +127,11 @@ interface ProcessedTweet {
     replies: number;
     quotes: number;
     views: number;
+    bookmarks: number;
   };
   isReply: boolean;
+  quotedTweet?: ThreadTweet | null;
+  retweetedTweet?: ThreadTweet | null;
 }
 
 interface LocalMedia {
@@ -242,6 +286,7 @@ function processTweets(tweets: ThreadTweet[]): ProcessedTweet[] {
   return tweets.map((tweet) => ({
     id: tweet.id,
     url: tweet.url,
+    twitterUrl: tweet.twitterUrl,
     date: tweet.createdAt,
     author: {
       name: tweet.author.name || tweet.author.userName,
@@ -249,6 +294,8 @@ function processTweets(tweets: ThreadTweet[]): ProcessedTweet[] {
       verified: tweet.author.isBlueVerified || false,
     },
     text: tweet.text,
+    source: tweet.source,
+    lang: tweet.lang,
     media: extractMedia(tweet),
     engagement: {
       likes: tweet.likeCount || 0,
@@ -256,8 +303,11 @@ function processTweets(tweets: ThreadTweet[]): ProcessedTweet[] {
       replies: tweet.replyCount || 0,
       quotes: tweet.quoteCount || 0,
       views: tweet.viewCount || 0,
+      bookmarks: tweet.bookmarkCount || 0,
     },
     isReply: tweet.isReply || false,
+    quotedTweet: tweet.quoted_tweet,
+    retweetedTweet: tweet.retweeted_tweet,
   }));
 }
 
@@ -365,6 +415,36 @@ function formatTweetSection(
     md += `![](${media.localPath})\n\n`;
   }
 
+  if (tweet.quotedTweet) {
+    md += `> Quoted from @${tweet.quotedTweet.author.userName}:\n`;
+    md += `> ${tweet.quotedTweet.text.split("\n").join("\n> ")}\n\n`;
+  }
+
+  if (tweet.retweetedTweet) {
+    md += `> 🔁 Retweeted from @${tweet.retweetedTweet.author.userName}:\n`;
+    md += `> ${tweet.retweetedTweet.text.split("\n").join("\n> ")}\n\n`;
+  }
+
+  const e = tweet.engagement;
+  const stats = [
+    e.likes > 0 ? `${formatNumber(e.likes)} ❤️` : null,
+    e.retweets > 0 ? `${formatNumber(e.retweets)} 🔁` : null,
+    e.replies > 0 ? `${formatNumber(e.replies)} 💬` : null,
+    e.quotes > 0 ? `${formatNumber(e.quotes)} 💬` : null,
+    e.views > 0 ? `${formatNumber(e.views)} 👁` : null,
+    e.bookmarks > 0 ? `${formatNumber(e.bookmarks)} 🔖` : null,
+  ].filter(Boolean);
+  if (stats.length > 0) {
+    md += `*${stats.join(" · ")}*\n\n`;
+  }
+
+  if (tweet.source || tweet.lang) {
+    const meta = [tweet.source, tweet.lang].filter(Boolean);
+    if (meta.length > 0) {
+      md += `_${meta.join(" · ")}_\n\n`;
+    }
+  }
+
   return md;
 }
 
@@ -404,10 +484,22 @@ function generateObsidianMarkdown(
 
   const totalLikes = tweets.reduce((sum, t) => sum + t.engagement.likes, 0);
   const totalRetweets = tweets.reduce((sum, t) => sum + t.engagement.retweets, 0);
+  const totalReplies = tweets.reduce((sum, t) => sum + t.engagement.replies, 0);
+  const totalQuotes = tweets.reduce((sum, t) => sum + t.engagement.quotes, 0);
   const totalViews = tweets.reduce((sum, t) => sum + t.engagement.views, 0);
+  const totalBookmarks = tweets.reduce((sum, t) => sum + t.engagement.bookmarks, 0);
+
+  const totals = [
+    totalLikes > 0 ? `${formatNumber(totalLikes)} likes` : null,
+    totalRetweets > 0 ? `${formatNumber(totalRetweets)} retweets` : null,
+    totalReplies > 0 ? `${formatNumber(totalReplies)} replies` : null,
+    totalQuotes > 0 ? `${formatNumber(totalQuotes)} quotes` : null,
+    totalViews > 0 ? `${formatNumber(totalViews)} views` : null,
+    totalBookmarks > 0 ? `${formatNumber(totalBookmarks)} bookmarks` : null,
+  ].filter(Boolean);
 
   md += `\n---\n\n`;
-  md += `*📊 Total: ${formatNumber(totalLikes)} likes · ${formatNumber(totalRetweets)} retweets · ${formatNumber(totalViews)} views*\n`;
+  md += `*📊 Total: ${totals.join(" · ")}*\n`;
 
   return md;
 }

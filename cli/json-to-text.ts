@@ -3,7 +3,7 @@ import { basename, join } from "path";
 
 const inputFile = process.argv[2];
 if (!inputFile) {
-  console.error("Usage: bun run json-to-text.ts <input.json> [items-per-file]");
+  console.error("Usage: pnpm exec tsx json-to-text.ts <input.json> [items-per-file]");
   process.exit(1);
 }
 

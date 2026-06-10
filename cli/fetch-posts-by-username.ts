@@ -1,12 +1,14 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
-const API_KEY = process.env.API_KEY!;
-const X_API_URL = process.env.X_API_URL!;
+const X_API_KEY = process.env.X_API_KEY;
+const X_API_URL = process.env.X_API_URL;
+if (!X_API_KEY) throw new Error("X_API_KEY environment variable is required");
+if (!X_API_URL) throw new Error("X_API_URL environment variable is required");
 const baseUrl = X_API_URL + "/twitter/user/last_tweets";
 
 const userName = process.argv[2];
-if (!userName) {
-  console.error("Usage: node fetch-posts-by-username.ts <username>");
+if (!userName || userName.startsWith("-")) {
+  console.error("Usage: node fetch-posts-by-username.ts <username> [--include-replies]");
   process.exit(1);
 }
 
@@ -21,11 +23,39 @@ interface MediaItem {
 
 interface Tweet {
   id: string;
+  url?: string;
+  twitterUrl?: string;
   text: string;
   createdAt: string;
+  source?: string;
+  lang?: string;
+  likeCount?: number;
+  retweetCount?: number;
+  replyCount?: number;
+  quoteCount?: number;
+  viewCount?: number;
+  bookmarkCount?: number;
+  isReply?: boolean;
+  isLimitedReply?: boolean;
+  inReplyToId?: string;
+  inReplyToUserId?: string;
+  inReplyToUsername?: string;
+  conversationId?: string;
+  displayTextRange?: number[];
   extendedEntities?: {
     media?: MediaItem[];
   };
+  entities?: {
+    hashtags?: Array<{ text: string }>;
+    urls?: Array<{ url: string; expanded_url: string }>;
+    user_mentions?: Array<{ screen_name: string }>;
+  };
+  quoted_tweet?: Tweet | null;
+  retweeted_tweet?: Tweet | null;
+  card?: object;
+  place?: object;
+  communityInfo?: object;
+  article?: object;
 }
 
 interface ApiResponse {
@@ -44,14 +74,17 @@ interface ExtractedPost {
   media: Array<{ type: "image" | "video"; url: string }>;
 }
 
+const includeReplies = process.argv.includes("--include-replies");
+
 async function fetchTweets(cursor: string = ""): Promise<ApiResponse> {
   const url = new URL(baseUrl);
   url.searchParams.set("userName", userName);
   if (cursor) url.searchParams.set("cursor", cursor);
+  if (includeReplies) url.searchParams.set("includeReplies", "true");
 
   const response = await fetch(url.toString(), {
     method: "GET",
-    headers: { "X-API-Key": API_KEY },
+    headers: { "X-API-Key": X_API_KEY },
   });
 
   const json = (await response.json()) as any;

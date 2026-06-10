@@ -1,97 +1,62 @@
 # Xport
 
-Xport is a web app and CLI for exporting X (Twitter) posts, threads, and articles.
+Xport exports Twitter/X posts, threads, user timelines, and articles from a web app, with CLI scripts for local data extraction.
 
-### Web App
+## Features
 
-- paste a tweet URL/ID to fetch the thread context
-- paste `@username`, username, or profile URL to fetch all posts of a user
-- paste an article tweet URL/ID to fetch article content
-- preview content inline with media handling in the app while it's being exported
-- download exports as `Markdown`, `JSON`, `Text`, `CSV`
-- copy to clipboard
-- stop long-running fetches and still export partial results
-- resume background fetch jobs after tab close via `jobId` in the URL
-- direct-export links: open `xport.frixaco.com/x.com/...` or `xport.frixaco.com/twitter.com/...` to start immediately
+- Fetch threads from a tweet URL or ID.
+- Fetch user posts from `@username`, username, or profile URL.
+- Fetch Twitter/X articles from article tweet URLs.
+- Preview fetched content and media before export.
+- Export Markdown, JSON, Text, and CSV where supported.
+- Stop long-running fetches and export partial results.
+- Resume background jobs from the `jobId` URL parameter.
+- Start exports from direct links like `xport.frixaco.com/x.com/...` and `xport.frixaco.com/twitter.com/...`.
 
 ## Demo
 
-| Home                                                         | Stop-Early `@frixaco` Run                                                           |
-| ------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| ![Xport home page screenshot](./public/readme/home-page.png) | ![Xport stop-early fetch run screenshot](./public/readme/stop-early-user-fetch.png) |
-
-## How It Works
-
-- **Input parsing** — a single parser normalizes tweet IDs, usernames, and Twitter/X URL variants, then routes to thread, user, or article flows.
-- **Fetching** — articles use a single request; threads and user timelines run as background jobs that loop through pages with cursor-based pagination.
-- **Progress tracking** — job state and fetched tweets are persisted in PostgreSQL. The UI polls for updates and can resume from where things left off. Stop requests are cooperative.
-- **Partial exports** — stopped or failed jobs still produce exports from whatever was fetched. Filenames include `-partial` so you know.
-- **Credit metering** — operations require credits, checked before each request. Usage is tracked via Polar through better-auth.
-
-## TODO
-
-- [ ] Add Redis-backed rate limiting (per-user + per-IP) on `/api/fetch-jobs`, fetch APIs, polling APIs, and auth APIs
-- [ ] Enforce fetch-job concurrency caps (per-user + global) with `429` backpressure
-- [ ] Add hard fetch loop guards: max pages/job, max tweets/job, max runtime/job, and upstream request timeouts
-- [ ] Add CSRF/origin checks for mutating endpoints (`POST /api/fetch-jobs`, `POST /api/fetch-jobs/[jobId]/stop`)
-- [ ] Lock down `GET /api/checkout/status` to authenticated owner access (or signed token)
-- [ ] Stop returning raw upstream error details to clients; log detailed payloads server-side only
-- [ ] Add retention cleanup for expired rows in `xport_fetch_jobs` and `xport_fetch_tweets`
-- [ ] Put Cloudflare in front of Railway (WAF, bot mitigation, API rate-limit rules)
+| Home                                                             | Stopped User Fetch                                                                      |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| ![Xport home page screenshot](./web/public/readme/home-page.png) | ![Xport stopped user fetch screenshot](./web/public/readme/stop-early-user-fetch.png)   |
 
 ## Architecture
 
-- **UI** (Next.js client components) — input detection, polling, result normalization, export generation
-- **API** (App Router, Node.js runtime) — validated request contracts, structured errors
-- **Domain** — fetch-loop orchestration, retry policy, stop semantics
-- **Data** (PostgreSQL) — job metadata, tweet payload snapshots
-- **Billing** (better-auth + Polar) — balance checks, metered usage events
-- **Social API proxy** — server-side calls via `X_API_URL` with private key
+- **Web:** TanStack Start, TanStack Router, React, shadcn/ui, Tailwind, Nitro output.
+- **API routes:** server-side proxies under `web/src/routes/api`.
+- **Data:** PostgreSQL for auth, fetch jobs, and fetched tweet snapshots.
+- **Billing:** better-auth + Polar credits.
+- **CLI:** Node.js/TypeScript scripts in `cli`.
+- **Package manager:** pnpm workspaces.
 
-## Fetch Jobs
+Private Social API access stays server-side through `X_API_URL` and `X_API_KEY`.
 
-Thread and user-timeline fetches run as background jobs: the server creates a job row, loops through pages via cursor, persists tweets incrementally, and charges credits as it goes. The UI polls for progress. Jobs end in `completed`, `stopped`, or `failed`. Stopped/failed jobs with stored data still produce exports.
+## Routes
 
-The UI persists the job id as `?jobId=<uuid>` in the URL so you can close the tab and reopen later to resume polling and export the same job.
-
-## Direct Export Links
-
-You can skip the input box by using deep links that embed the source X/Twitter path into the Xport path. Xport will redirect to home and immediately start exporting.
-
-Examples:
-
-- `https://xport.frixaco.com/x.com/javarevisited/article/2020886352838225926`
-- `https://xport.frixaco.com/x.com/burakeregar/status/2020852442230120752`
-- `https://xport.frixaco.com/twitter.com/burakeregar/status/2020852442230120752`
+- `/` - main export UI.
+- `/x.com/<path>` and `/twitter.com/<path>` - direct-export redirects.
+- `/auth-error` and `/checkout/success` - utility redirects.
+- `/thread`, `/article`, and `/export` - reserved utility redirects.
+- `/api/*` - server API routes.
 
 ## Exports
 
-| Type                | Formats                        |
-| ------------------- | ------------------------------ |
-| Thread / User posts | Markdown, JSON, Text, CSV      |
-| Article             | Markdown (+ copy to clipboard) |
-
-Filenames: `<username>-thread.<ext>`, `<username>-user-posts.<ext>`, or sanitized article title. Partial runs get a `-partial` suffix.
-
-## Auth & Billing
-
-Sign in with GitHub or Google. Credits are managed through Polar — two packs available: 125 credits ($1) and 1250 credits ($10). Threads and user fetches cost `max(1, ceil(tweetCount / 20))` credits; articles and user-info lookups cost 1 credit.
-
-## SEO
-
-Home page (`/`) is the main indexed surface with canonical, Open Graph, JSON-LD, robots, and sitemap. `/auth-error` and `/checkout/success` are utility redirects back to home.
+| Source     | Formats                   | Filename                         |
+| ---------- | ------------------------- | -------------------------------- |
+| Thread     | Markdown, JSON, Text, CSV | `<username>-thread.<ext>`        |
+| User posts | Markdown, JSON, Text, CSV | `<username>-user-posts.<ext>`    |
+| Partial    | Markdown, JSON, Text, CSV | Adds `-partial` before extension |
+| Article    | Markdown                  | `<sanitized-article-title>.md`   |
 
 ## Local Development
 
-Prereqs:
+Requirements:
 
-- Node.js 20+
+- Node.js 24.x
+- pnpm 10.x
 - PostgreSQL
-- OAuth credentials (GitHub/Google)
-- Polar credentials + product IDs
-- `X_API_URL` and `X_API_KEY`
-
-Install + run:
+- GitHub/Google OAuth credentials
+- Polar credentials
+- Social API credentials
 
 ```bash
 pnpm install
@@ -105,19 +70,21 @@ Useful commands:
 pnpm run build
 pnpm run check
 pnpm run lint
+pnpm run format
 pnpm run db:migrate
 pnpm run db:generate
 ```
 
-## Required Environment Variables
+## Environment
 
-Core runtime:
+Core:
 
 - `DATABASE_URL`
-- `X_API_URL` — Social API base URL
-- `X_API_KEY` (or `API_KEY`)
 - `BETTER_AUTH_URL`
-- `SITE_URL` (recommended)
+- `BETTER_AUTH_SECRET`
+- `SITE_URL`
+- `X_API_URL`
+- `X_API_KEY`
 
 OAuth:
 
@@ -129,80 +96,46 @@ OAuth:
 Polar:
 
 - `POLAR_ENV`
-- `POLAR_ACCESS_TOKEN` / `SANDBOX_POLAR_ACCESS_TOKEN`
-- `POLAR_CREDITS_50_CREDITS_PRODUCT_ID` / `SANDBOX_POLAR_CREDITS_50_CREDITS_PRODUCT_ID` ($1 credits pack)
-- `POLAR_CREDITS_500_CREDITS_PRODUCT_ID` / `SANDBOX_POLAR_CREDITS_500_CREDITS_PRODUCT_ID` ($10 credits pack)
+- `POLAR_ACCESS_TOKEN` or `SANDBOX_POLAR_ACCESS_TOKEN`
+- `POLAR_CREDITS_50_CREDITS_PRODUCT_ID` or `SANDBOX_POLAR_CREDITS_50_CREDITS_PRODUCT_ID`
+- `POLAR_CREDITS_500_CREDITS_PRODUCT_ID` or `SANDBOX_POLAR_CREDITS_500_CREDITS_PRODUCT_ID`
 
-## Deployment (Railway)
+Analytics:
 
-Production target: `https://xport.frixaco.com`
-
-Runtime:
-
-- Node `24.x` (from root `package.json` `engines`)
-- pnpm `10.x`
-- Build command: `pnpm build`
-- Start command: `pnpm start`
-
-App output:
-
-- TanStack Start + Nitro
-- server entry: `web/.output/server/index.mjs`
-
-Typical flow:
-
-```bash
-railway link
-railway service xport-web
-railway up --detach
-railway logs
-```
-
-Set/update env:
-
-```bash
-railway variable set KEY="value"
-```
-
-Public app env names:
-
-- `SITE_URL`
 - `PUBLIC_POSTHOG_KEY`
 - `PUBLIC_POSTHOG_HOST`
 
-Run commands with deployed env:
+## Deployment
+
+Production: `https://xport.frixaco.com`
+
+Railway uses `railway.json`:
+
+- Build: `pnpm build`
+- Start: `pnpm start`
+- Healthcheck: `/`
 
 ```bash
-railway run -- pnpm run db:migrate
+railway service xport-web
+railway up --detach
+railway service status
+railway logs
 ```
 
-## Quality Checks
-
-```bash
-pnpm run check   # oxfmt + oxlint via filter
-pnpm run lint    # oxlint
-pnpm run format  # oxfmt --write
-```
-
-For end-to-end behavior, validate live flows on `xport.frixaco.com`:
-
-- article fetch + markdown download/copy
-- complete thread fetch + all export formats
-- user fetch stop-early + partial exports
-- network polling cadence + stop response correctness
-- Railway logs + DB job state consistency
+Custom SQL migrations live in `web/migrations/`.
 
 ## CLI
 
-```bash
-pnpm run fetch-thread -- <tweet-url-or-id>
-pnpm run fetch-article -- <tweet-url-or-id>
-pnpm run fetch-posts-by-username -- <username>
-pnpm run fetch-user-info -- <username>
-pnpm exec tsx json-to-text.ts <input.json>
-```
+CLI scripts read `cli/.env`; see `cli/.env.example`.
 
-See `cli/` for all available scripts.
+```bash
+pnpm --filter cli fetch-thread -- <tweet-url-or-id>
+pnpm --filter cli fetch-article -- <tweet-url-or-id>
+pnpm --filter cli fetch-posts-by-username -- <username>
+pnpm --filter cli fetch-user-info -- <username>
+pnpm --filter cli fetch-bookmarks
+pnpm --filter cli exec tsx json-to-text.ts <input.json>
+```
 
 ## License
 
