@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback } from "react";
+import { Fragment } from "react";
 import { ExternalLink, LoaderCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FetchJobStatusResponse, MediaItem, ResultState, TweetCardModel } from "./types";
@@ -97,13 +97,21 @@ function MediaGallery({ media, altPrefix }: { media: MediaItem[]; altPrefix: str
               />
             </a>
           ) : (
-            <video
-              src={item.url}
-              controls
-              playsInline
-              preload="metadata"
-              className={cn("w-full bg-black", asGrid ? "h-52 sm:h-44" : "max-h-96")}
-            />
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noreferrer"
+              className={cn(
+                "flex min-h-32 w-full flex-col items-center justify-center gap-2 p-4 text-center text-sm transition-colors hover:bg-secondary",
+                asGrid ? "h-52 sm:h-44" : "min-h-44",
+              )}
+            >
+              <span className="font-medium">Video attachment</span>
+              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                Open video
+                <ExternalLink className="size-3" />
+              </span>
+            </a>
           )}
         </div>
       ))}
@@ -185,16 +193,13 @@ export function ResultDisplay({
         : result.tweets.length > 0;
   const badge = jobStatus ? resolveJobBadge(jobStatus, hasResults) : null;
 
-  const handleScroll = useCallback(
-    (event: React.UIEvent<HTMLDivElement>) => {
-      if (!onLoadMore || loadingMore) return;
-      const el = event.currentTarget;
-      if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) {
-        onLoadMore();
-      }
-    },
-    [onLoadMore, loadingMore],
-  );
+  function handleScroll(event: React.UIEvent<HTMLDivElement>) {
+    if (!onLoadMore || loadingMore) return;
+    const el = event.currentTarget;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) {
+      onLoadMore();
+    }
+  }
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 mt-2 w-full duration-300 md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center">

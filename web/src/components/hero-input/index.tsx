@@ -1,6 +1,7 @@
 "use client";
 
-import { SubmitEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SubmitEvent, useEffect, useEffectEvent, useRef, useState } from "react";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, Check, Copy, Download, LoaderCircle, Square } from "lucide-react";
 import { toast } from "sonner";
@@ -13,7 +14,6 @@ import { parseUsername } from "@/lib/url-parser";
 import type {
   FetchJobRequestType,
   FetchJobResumeResponse,
-  FetchJobState,
   FetchJobStatusResponse,
   ResultState,
   TweetCardModel,
@@ -26,8 +26,8 @@ import {
   extractErrorMessage,
   extractUsernameFromTweetCard,
   hasRenderableContent,
-  normalizeTweetCards,
   normalizeResult,
+  normalizeTweetCards,
 } from "./utils";
 import { ResultDisplay, ResultDisplayLoading } from "./result-display";
 import {
@@ -46,19 +46,6 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 function isTerminalStatus(status: string): boolean {
   return status === "completed" || status === "stopped" || status === "failed";
-}
-
-function toFetchJobStatus(payload: FetchJobStatusResponse): FetchJobStatusResponse {
-  return {
-    status: payload.status,
-    pagesFetched: payload.pagesFetched,
-    rawFetchedTweets: payload.rawFetchedTweets,
-    storedTweets: payload.storedTweets,
-    chargedCredits: payload.chargedCredits,
-    hasNextPage: payload.hasNextPage,
-    error: payload.error,
-    updatedAt: payload.updatedAt,
-  };
 }
 
 function buildJobResult(
@@ -99,18 +86,90 @@ function buildJobResult(
   };
 }
 
+interface JobTweetPage {
+  cards: TweetCardModel[];
+  mainTweet: TweetCardModel | null;
+  total: number;
+}
+
+interface ActiveJob {
+  jobId: string;
+  requestType: FetchJobRequestType;
+  sourceUsername: string | null;
+}
+
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, init);
+  const payload = (await response.json().catch(() => null)) as unknown;
+  if (!response.ok) {
+    throw new Error(extractErrorMessage(payload) ?? `Request failed (${response.status}).`);
+  }
+  return payload as T;
+}
+
+async function fetchArticleResult(input: string): Promise<ResultState> {
+  const payload = await fetchJson<unknown>(`/api/article?input=${encodeURIComponent(input)}`, {
+    method: "GET",
+    cache: "no-store",
+  });
+  return normalizeResult(payload, "article", input);
+}
+
+async function createFetchJob(input: string): Promise<{ jobId: string }> {
+  return fetchJson<{ jobId: string }>("/api/fetch-jobs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ input }),
+  });
+}
+
+async function fetchJobStatus(jobId: string): Promise<FetchJobResumeResponse> {
+  const response = await fetch(`/api/fetch-jobs/${jobId}/status`, {
+    cache: "no-store",
+  });
+
+  if (response.status === 401) {
+    throw new Error("Sign in to resume this fetch job.");
+  }
+
+  if (response.status === 404) {
+    throw new Error("Fetch job not found.");
+  }
+
+  if (!response.ok) {
+    throw new Error(`Request failed (${response.status}).`);
+  }
+
+  return (await response.json()) as FetchJobResumeResponse;
+}
+
+async function stopFetchJob(jobId: string): Promise<FetchJobStatusResponse> {
+  const response = await fetch(`/api/fetch-jobs/${jobId}/stop`, {
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Request failed (${response.status}).`);
+  }
+
+  return (await response.json()) as FetchJobStatusResponse;
+}
+
 async function fetchJobTweetPage(
   jobId: string,
   requestType: FetchJobRequestType,
   offset: number,
   limit: number,
-): Promise<{ cards: TweetCardModel[]; mainTweet: TweetCardModel | null; total: number } | null> {
-  const res = await fetch(`/api/fetch-jobs/${jobId}/tweets?offset=${offset}&limit=${limit}`, {
+): Promise<JobTweetPage> {
+  const response = await fetch(`/api/fetch-jobs/${jobId}/tweets?offset=${offset}&limit=${limit}`, {
     cache: "no-store",
   });
-  if (!res.ok) return null;
 
-  const data = (await res.json()) as {
+  if (!response.ok) {
+    throw new Error(`Request failed (${response.status}).`);
+  }
+
+  const data = (await response.json()) as {
     tweets?: unknown[];
     mainTweet?: unknown;
     total?: number;
@@ -127,560 +186,380 @@ async function fetchJobTweetPage(
   };
 }
 
+async function fetchAllTweetsForExport(
+  job: ActiveJob,
+  status: FetchJobStatusResponse,
+): Promise<{ tweets: TweetCardModel[]; mainTweet: TweetCardModel | null }> {
+  const tweets: TweetCardModel[] = [];
+  const seenIds = new Set<string>();
+  let mainTweet: TweetCardModel | null = null;
+  let offset = 0;
+  let total = 0;
+
+  while (true) {
+    const page = await fetchJobTweetPage(
+      job.jobId,
+      job.requestType,
+      offset,
+      EXPORT_FETCH_PAGE_SIZE,
+    );
+
+    total = Math.max(total, page.total);
+    if (page.mainTweet) mainTweet = page.mainTweet;
+
+    page.cards.forEach((card) => {
+      if (seenIds.has(card.id)) return;
+      seenIds.add(card.id);
+      tweets.push(card);
+    });
+
+    if (page.cards.length === 0) break;
+
+    offset += page.cards.length;
+    if (total > 0 && offset >= total) break;
+  }
+
+  if (status.storedTweets > 0 && tweets.length < status.storedTweets) {
+    throw new Error("Export is still syncing. Try again in a moment.");
+  }
+
+  return { tweets, mainTweet };
+}
+
 function hasExportablePosts(result: ResultState): boolean {
   if (result.kind === "thread") return Boolean(result.mainTweet) || result.tweets.length > 0;
   if (result.kind === "user-tweets") return result.tweets.length > 0;
   return false;
 }
 
+function getLoadedTweetCount(pages: JobTweetPage[]): number {
+  return pages.reduce((sum, page) => sum + page.cards.length, 0);
+}
+
+function getUniqueTweets(pages: JobTweetPage[]): TweetCardModel[] {
+  const seenIds = new Set<string>();
+  const tweets: TweetCardModel[] = [];
+
+  pages.forEach((page) => {
+    page.cards.forEach((tweet) => {
+      if (seenIds.has(tweet.id)) return;
+      seenIds.add(tweet.id);
+      tweets.push(tweet);
+    });
+  });
+
+  return tweets;
+}
+
+function getErrorMessage(error: unknown, fallback: string): string | null {
+  if (!error) return null;
+  return error instanceof Error ? error.message : fallback;
+}
+
 export function HeroInput() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [value, setValue] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isStopping, setIsStopping] = useState(false);
-  const [result, setResult] = useState<ResultState | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const [markdownCopied, setMarkdownCopied] = useState(false);
 
-  const [fetchJob, setFetchJob] = useState<FetchJobState | null>(null);
-  const [jobTweets, setJobTweets] = useState<TweetCardModel[]>([]);
-  const [jobMainTweet, setJobMainTweet] = useState<TweetCardModel | null>(null);
-  const [tweetsOffset, setTweetsOffset] = useState(0);
-  const [tweetsTotal, setTweetsTotal] = useState(0);
-  const [loadingMore, setLoadingMore] = useState(false);
-
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const markdownCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const resumeAttemptedRef = useRef(false);
-  const autoStartAttemptedRef = useRef(false);
+  const detected = detectUrlType(value);
 
-  const detected = useMemo(() => detectUrlType(value), [value]);
-  const jobResult = useMemo(
-    () =>
-      fetchJob
-        ? buildJobResult(
-            fetchJob.requestType,
-            jobTweets,
-            jobMainTweet,
-            fetchJob.status,
-            fetchJob.sourceUsername,
-          )
-        : null,
-    [fetchJob, jobMainTweet, jobTweets],
-  );
-  const displayedResult = result ?? jobResult;
+  const articleMutation = useMutation({
+    mutationFn: fetchArticleResult,
+  });
+  const createJobMutation = useMutation({
+    mutationFn: createFetchJob,
+    onSuccess: ({ jobId }) => {
+      setJobIdInUrl(jobId);
+    },
+  });
+  const resumeJobMutation = useMutation({
+    mutationFn: fetchJobStatus,
+    onSuccess: (payload, jobId) => {
+      setValue(payload.inputRaw);
+      queryClient.setQueryData(["fetch-job", "status", jobId], payload);
+    },
+  });
+
+  const activeJob: ActiveJob | null =
+    resumeJobMutation.data && resumeJobMutation.variables
+      ? {
+          jobId: resumeJobMutation.variables,
+          requestType: resumeJobMutation.data.requestType,
+          sourceUsername: parseUsername(resumeJobMutation.data.inputRaw),
+        }
+      : createJobMutation.data && createJobMutation.variables
+        ? {
+            jobId: createJobMutation.data.jobId,
+            requestType:
+              buildRequestConfig(
+                createJobMutation.variables,
+                detectUrlType(createJobMutation.variables),
+              )?.type === "thread"
+                ? "thread"
+                : "user",
+            sourceUsername: parseUsername(createJobMutation.variables),
+          }
+        : null;
+
+  const jobStatusQuery = useQuery({
+    queryKey: ["fetch-job", "status", activeJob?.jobId],
+    queryFn: () => fetchJobStatus(activeJob!.jobId),
+    enabled: Boolean(activeJob),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status && isTerminalStatus(status) ? false : POLL_INTERVAL_MS;
+    },
+  });
+  const jobStatus = jobStatusQuery.data ?? null;
+  const jobTweetsQuery = useInfiniteQuery({
+    queryKey: ["fetch-job", "tweets", activeJob?.jobId],
+    queryFn: ({ pageParam }) =>
+      fetchJobTweetPage(activeJob!.jobId, activeJob!.requestType, pageParam, TWEETS_PAGE_SIZE),
+    initialPageParam: 0,
+    enabled: Boolean(activeJob),
+    refetchInterval: jobStatus && !isTerminalStatus(jobStatus.status) ? POLL_INTERVAL_MS : false,
+    getNextPageParam: (lastPage, pages) => {
+      const loadedCount = getLoadedTweetCount(pages);
+      return loadedCount < lastPage.total ? loadedCount : undefined;
+    },
+  });
+  const stopJobMutation = useMutation({
+    mutationFn: stopFetchJob,
+    onSuccess: (status) => {
+      if (!activeJob) return;
+      queryClient.setQueryData(["fetch-job", "status", activeJob.jobId], {
+        ...jobStatusQuery.data,
+        ...status,
+      });
+      queryClient.invalidateQueries({ queryKey: ["fetch-job", "status", activeJob.jobId] });
+    },
+    onError: () => {
+      toast.error("Failed to stop fetch.");
+    },
+  });
+
+  const isLoading =
+    articleMutation.isPending || createJobMutation.isPending || resumeJobMutation.isPending;
+  const isStopping = stopJobMutation.isPending;
+  const isJobActive = Boolean(jobStatus && !isTerminalStatus(jobStatus.status));
+  const jobPages = jobTweetsQuery.data?.pages ?? [];
+  const jobTweets = getUniqueTweets(jobPages);
+  const jobMainTweet = jobPages.find((page) => page.mainTweet)?.mainTweet ?? null;
+  const jobResult =
+    activeJob && jobStatus
+      ? buildJobResult(
+          activeJob.requestType,
+          jobTweets,
+          jobMainTweet,
+          jobStatus,
+          activeJob.sourceUsername,
+        )
+      : null;
+  const displayedResult = articleMutation.data ?? jobResult;
+  const error =
+    validationError ??
+    getErrorMessage(
+      articleMutation.error ?? createJobMutation.error,
+      "Unexpected error while exporting.",
+    ) ??
+    getErrorMessage(resumeJobMutation.error, "Unexpected error while resuming fetch job.") ??
+    getErrorMessage(jobStatusQuery.error, "Unexpected error while fetching job status.");
   const hasResults = hasRenderableContent(displayedResult);
-  const isJobActive = fetchJob !== null && !isTerminalStatus(fetchJob.status.status);
-  const showResultLayout =
-    hasSubmitted || isLoading || Boolean(displayedResult) || Boolean(error) || isJobActive;
-  const isActive = hasSubmitted || isLoading || hasResults || Boolean(error) || isJobActive;
+  const showResultLayout = isLoading || Boolean(displayedResult) || Boolean(error) || isJobActive;
+  const isActive = isLoading || hasResults || Boolean(error) || isJobActive;
 
-  const handleExample = useCallback((v: string) => setValue(v), []);
+  function setJobIdInUrl(jobId: string | null, options?: { clearInput?: boolean }) {
+    if (typeof window === "undefined") return;
 
-  const stopPolling = useCallback(() => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-  }, []);
+    const url = new URL(window.location.href);
+    const currentJobId = url.searchParams.get(JOB_ID_QUERY_PARAM);
+    const clearInput = options?.clearInput ?? false;
+    let hasChanges = false;
 
-  const setJobIdInUrl = useCallback(
-    (jobId: string | null, options?: { clearInput?: boolean }) => {
-      if (typeof window === "undefined") return;
-
-      const url = new URL(window.location.href);
-      const currentJobId = url.searchParams.get(JOB_ID_QUERY_PARAM);
-      const clearInput = options?.clearInput ?? false;
-      let hasChanges = false;
-
-      if (jobId) {
-        if (currentJobId !== jobId) {
-          url.searchParams.set(JOB_ID_QUERY_PARAM, jobId);
-          hasChanges = true;
-        }
-      } else {
-        if (currentJobId) {
-          url.searchParams.delete(JOB_ID_QUERY_PARAM);
-          hasChanges = true;
-        }
-      }
-
-      if (clearInput && url.searchParams.has(INPUT_QUERY_PARAM)) {
-        url.searchParams.delete(INPUT_QUERY_PARAM);
+    if (jobId) {
+      if (currentJobId !== jobId) {
+        url.searchParams.set(JOB_ID_QUERY_PARAM, jobId);
         hasChanges = true;
       }
+    } else if (currentJobId) {
+      url.searchParams.delete(JOB_ID_QUERY_PARAM);
+      hasChanges = true;
+    }
 
-      if (!hasChanges) return;
+    if (clearInput && url.searchParams.has(INPUT_QUERY_PARAM)) {
+      url.searchParams.delete(INPUT_QUERY_PARAM);
+      hasChanges = true;
+    }
 
-      const nextUrl = url.searchParams.toString()
-        ? `${url.pathname}?${url.searchParams.toString()}`
-        : url.pathname;
-      navigate({ to: nextUrl, replace: true });
-    },
-    [navigate],
-  );
+    if (!hasChanges) return;
 
-  const resetJobData = useCallback(() => {
-    setFetchJob(null);
-    setJobTweets([]);
-    setJobMainTweet(null);
-    setTweetsOffset(0);
-    setTweetsTotal(0);
-  }, []);
+    const nextUrl = url.searchParams.toString()
+      ? `${url.pathname}?${url.searchParams.toString()}`
+      : url.pathname;
+    navigate({ to: nextUrl, replace: true });
+  }
 
-  const handleBackToHome = useCallback(() => {
+  function clearAsyncResults() {
+    articleMutation.reset();
+    createJobMutation.reset();
+    resumeJobMutation.reset();
+    stopJobMutation.reset();
+    queryClient.removeQueries({ queryKey: ["fetch-job"] });
+  }
+
+  function handleBackToHome() {
     if (isLoading) return;
-    stopPolling();
     setJobIdInUrl(null);
-    setValue("");
-    setIsStopping(false);
-    setResult(null);
-    setError(null);
-    setHasSubmitted(false);
+    setValidationError(null);
     setMarkdownCopied(false);
-    resetJobData();
-  }, [isLoading, resetJobData, setJobIdInUrl, stopPolling]);
+    setValue("");
+    clearAsyncResults();
+  }
 
-  const fetchTweets = useCallback(
-    async (jobId: string, requestType: FetchJobRequestType, offset: number, append: boolean) => {
-      const page = await fetchJobTweetPage(jobId, requestType, offset, TWEETS_PAGE_SIZE);
-      if (!page) return;
+  function runExport(rawInput: string, options?: { clearInputQueryParam?: boolean }) {
+    if (isLoading) return;
 
-      if (append) {
-        setJobTweets((prev) => {
-          const existingIds = new Set(prev.map((t) => t.id));
-          const fresh = page.cards.filter((c) => !existingIds.has(c.id));
-          return [...prev, ...fresh];
-        });
-      } else {
-        setJobTweets(page.cards);
-      }
+    const trimmed = rawInput.trim();
+    if (!trimmed) return;
 
-      if (page.mainTweet) setJobMainTweet(page.mainTweet);
-      setTweetsTotal(page.total);
-    },
-    [],
-  );
+    const clearInputQueryParam = options?.clearInputQueryParam ?? false;
+    const inputType = detectUrlType(trimmed);
+    const requestConfig = buildRequestConfig(trimmed, inputType);
 
-  const fetchAllTweetsForExport = useCallback(async (job: FetchJobState) => {
-    const tweets: TweetCardModel[] = [];
-    const seenIds = new Set<string>();
-    let mainTweet: TweetCardModel | null = null;
-    let offset = 0;
-    let total = 0;
+    setValidationError(null);
+    setMarkdownCopied(false);
+    clearAsyncResults();
+    setJobIdInUrl(null, { clearInput: clearInputQueryParam });
 
-    while (true) {
-      const page = await fetchJobTweetPage(
-        job.jobId,
-        job.requestType,
-        offset,
-        EXPORT_FETCH_PAGE_SIZE,
-      );
-      if (!page) throw new Error("Request failed while loading export data.");
-
-      total = Math.max(total, page.total);
-      if (page.mainTweet) mainTweet = page.mainTweet;
-
-      page.cards.forEach((card) => {
-        if (seenIds.has(card.id)) return;
-        seenIds.add(card.id);
-        tweets.push(card);
-      });
-
-      if (page.cards.length === 0) break;
-
-      offset += page.cards.length;
-      if (total > 0 && offset >= total) break;
+    if (inputType === "Bookmarks") {
+      setValidationError("Bookmarks export is not available yet.");
+      return;
     }
 
-    if (job.status.storedTweets > 0 && tweets.length < job.status.storedTweets) {
-      throw new Error("Export is still syncing. Try again in a moment.");
+    if (!requestConfig) {
+      setValidationError("Invalid input. Provide a valid Twitter/X URL or @username.");
+      return;
     }
 
-    return { tweets, mainTweet };
-  }, []);
-
-  const startPolling = useCallback(
-    (jobId: string, requestType: FetchJobRequestType, sourceUsername: string | null) => {
-      stopPolling();
-
-      const poll = async () => {
-        try {
-          const res = await fetch(`/api/fetch-jobs/${jobId}/status`, {
-            cache: "no-store",
-          });
-          if (!res.ok) return;
-
-          const status = toFetchJobStatus((await res.json()) as FetchJobStatusResponse);
-
-          setFetchJob((prev) =>
-            prev ? { ...prev, status } : { jobId, requestType, sourceUsername, status },
-          );
-
-          await fetchTweets(jobId, requestType, 0, false);
-
-          if (isTerminalStatus(status.status)) {
-            stopPolling();
-            setIsStopping(false);
-          }
-        } catch {
-          // Silently retry on next interval
-        }
-      };
-
-      poll();
-      pollRef.current = setInterval(poll, POLL_INTERVAL_MS);
-    },
-    [stopPolling, fetchTweets],
-  );
-
-  useEffect(() => {
-    return () => {
-      stopPolling();
-      if (markdownCopiedTimerRef.current) {
-        clearTimeout(markdownCopiedTimerRef.current);
-      }
-    };
-  }, [stopPolling]);
-
-  const handleStopJob = useCallback(async () => {
-    if (!fetchJob || isStopping) return;
-    setIsStopping(true);
-
-    try {
-      const res = await fetch(`/api/fetch-jobs/${fetchJob.jobId}/stop`, {
-        method: "POST",
-      });
-      if (!res.ok) {
-        setIsStopping(false);
-        return;
-      }
-
-      const status = toFetchJobStatus((await res.json()) as FetchJobStatusResponse);
-      setFetchJob((prev) => (prev ? { ...prev, status } : null));
-
-      if (isTerminalStatus(status.status)) {
-        stopPolling();
-        setIsStopping(false);
-        return;
-      }
-
-      // Keep existing polling alive until terminal state is observed.
-      if (!pollRef.current) {
-        startPolling(fetchJob.jobId, fetchJob.requestType, fetchJob.sourceUsername);
-      }
-    } catch {
-      setIsStopping(false);
-      toast.error("Failed to stop fetch.");
+    if (requestConfig.type === "article") {
+      articleMutation.mutate(trimmed);
+      return;
     }
-  }, [fetchJob, isStopping, stopPolling, startPolling]);
 
-  const handleLoadMore = useCallback(async () => {
-    if (!fetchJob || loadingMore) return;
-    const nextOffset = tweetsOffset + TWEETS_PAGE_SIZE;
-    if (nextOffset >= tweetsTotal) return;
+    createJobMutation.mutate(trimmed);
+  }
 
-    setLoadingMore(true);
-    try {
-      await fetchTweets(fetchJob.jobId, fetchJob.requestType, nextOffset, true);
-      setTweetsOffset(nextOffset);
-    } finally {
-      setLoadingMore(false);
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (isJobActive) {
+      if (isStopping || !activeJob) return;
+      stopJobMutation.mutate(activeJob.jobId);
+      return;
     }
-  }, [fetchJob, loadingMore, tweetsOffset, tweetsTotal, fetchTweets]);
 
-  const runExport = useCallback(
-    async (rawInput: string, options?: { clearInputQueryParam?: boolean }) => {
-      if (isLoading) return;
+    if (isLoading) return;
+    runExport(value);
+  }
 
-      const trimmed = rawInput.trim();
-      if (!trimmed) return;
+  const startUrlInput = useEffectEvent((input: string) => {
+    setValue(input);
+    runExport(input, { clearInputQueryParam: true });
+  });
 
-      const clearInputQueryParam = options?.clearInputQueryParam ?? false;
-      const inputType = detectUrlType(trimmed);
-      const sourceUsername = parseUsername(trimmed);
-      const currentRequestConfig = buildRequestConfig(trimmed, inputType);
+  const resumeUrlJob = useEffectEvent((jobId: string) => {
+    setValidationError(null);
+    clearAsyncResults();
+    resumeJobMutation.mutate(jobId);
+  });
 
-      setHasSubmitted(true);
-      setResult(null);
-      setError(null);
-      setMarkdownCopied(false);
-      setIsStopping(false);
-      resetJobData();
-      stopPolling();
-      setJobIdInUrl(null, { clearInput: clearInputQueryParam });
-
-      if (inputType === "Bookmarks") {
-        setError("Bookmarks export is not available yet.");
-        return;
-      }
-
-      if (!currentRequestConfig) {
-        setError("Invalid input. Provide a valid Twitter/X URL or @username.");
-        return;
-      }
-
-      if (currentRequestConfig.type === "article") {
-        setIsLoading(true);
-        try {
-          const response = await fetch(`/api/article?input=${encodeURIComponent(trimmed)}`, {
-            method: "GET",
-            cache: "no-store",
-          });
-
-          const payload = (await response.json().catch(() => null)) as unknown;
-          if (!response.ok) {
-            throw new Error(extractErrorMessage(payload) ?? `Request failed (${response.status}).`);
-          }
-
-          setResult(normalizeResult(payload, currentRequestConfig.type, trimmed));
-        } catch (requestError) {
-          setError(
-            requestError instanceof Error
-              ? requestError.message
-              : "Unexpected error while exporting.",
-          );
-        } finally {
-          setIsLoading(false);
-        }
-        return;
-      }
-
-      setIsLoading(true);
-      try {
-        const res = await fetch("/api/fetch-jobs", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ input: trimmed }),
-        });
-
-        const payload = (await res.json().catch(() => null)) as unknown;
-        if (!res.ok) {
-          throw new Error(extractErrorMessage(payload) ?? `Request failed (${res.status}).`);
-        }
-
-        const jobId = (payload as { jobId: string }).jobId;
-        const requestType: FetchJobRequestType =
-          currentRequestConfig.type === "thread" ? "thread" : "user";
-
-        const initialStatus: FetchJobStatusResponse = {
-          status: "running",
-          pagesFetched: 0,
-          rawFetchedTweets: 0,
-          storedTweets: 0,
-          chargedCredits: 0,
-          hasNextPage: true,
-          error: null,
-          updatedAt: new Date().toISOString(),
-        };
-
-        setFetchJob({
-          jobId,
-          requestType,
-          sourceUsername,
-          status: initialStatus,
-        });
-        setJobIdInUrl(jobId);
-        startPolling(jobId, requestType, sourceUsername);
-      } catch (requestError) {
-        setError(
-          requestError instanceof Error
-            ? requestError.message
-            : "Unexpected error while exporting.",
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [isLoading, resetJobData, setJobIdInUrl, startPolling, stopPolling],
-  );
-
-  const handleSubmit = useCallback(
-    (event: SubmitEvent<HTMLFormElement>) => {
-      event.preventDefault();
-
-      if (isJobActive) {
-        if (isStopping) return;
-        handleStopJob();
-        return;
-      }
-
-      if (isLoading) return;
-      void runExport(value);
-    },
-    [handleStopJob, isLoading, isJobActive, isStopping, runExport, value],
-  );
+  const rejectUrlJob = useEffectEvent(() => {
+    setValidationError("Invalid job id.");
+    setJobIdInUrl(null);
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const searchParams = new URLSearchParams(window.location.search);
     const jobId = searchParams.get(JOB_ID_QUERY_PARAM);
-    if (!jobId) {
-      if (autoStartAttemptedRef.current) return;
-
-      const input = searchParams.get(INPUT_QUERY_PARAM);
-      if (!input) return;
-
-      autoStartAttemptedRef.current = true;
-      setValue(input);
-      void runExport(input, { clearInputQueryParam: true });
+    if (jobId) {
+      if (UUID_PATTERN.test(jobId)) resumeUrlJob(jobId);
+      else rejectUrlJob();
       return;
     }
 
-    if (resumeAttemptedRef.current) return;
-    resumeAttemptedRef.current = true;
+    const input = searchParams.get(INPUT_QUERY_PARAM);
+    if (input) startUrlInput(input);
+  }, []);
 
-    if (!UUID_PATTERN.test(jobId)) {
-      setHasSubmitted(true);
-      setError("Invalid job id.");
-      setJobIdInUrl(null);
-      return;
-    }
-
-    let cancelled = false;
-
-    const resumeFromUrl = async () => {
-      setHasSubmitted(true);
-      setIsLoading(true);
-      setError(null);
-      setIsStopping(false);
-      setResult(null);
-      resetJobData();
-      stopPolling();
-
-      try {
-        const res = await fetch(`/api/fetch-jobs/${jobId}/status`, {
-          cache: "no-store",
-        });
-
-        if (cancelled) return;
-
-        if (res.status === 401) {
-          setError("Sign in to resume this fetch job.");
-          return;
-        }
-
-        if (res.status === 404) {
-          setError("Fetch job not found.");
-          setJobIdInUrl(null);
-          return;
-        }
-
-        if (!res.ok) {
-          throw new Error(`Request failed (${res.status}).`);
-        }
-
-        const payload = (await res.json()) as FetchJobResumeResponse;
-        const requestType = payload.requestType;
-        const sourceInput = payload.inputRaw;
-        const sourceUsername = parseUsername(sourceInput);
-        const status = toFetchJobStatus(payload);
-
-        if (cancelled) return;
-
-        setValue(sourceInput);
-        setFetchJob({
-          jobId,
-          requestType,
-          sourceUsername,
-          status,
-        });
-
-        await fetchTweets(jobId, requestType, 0, false);
-
-        if (cancelled) return;
-
-        if (!isTerminalStatus(status.status)) {
-          startPolling(jobId, requestType, sourceUsername);
-        }
-      } catch (requestError) {
-        if (cancelled) return;
-        setError(
-          requestError instanceof Error
-            ? requestError.message
-            : "Unexpected error while resuming fetch job.",
-        );
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    void resumeFromUrl();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchTweets, resetJobData, runExport, setJobIdInUrl, startPolling, stopPolling]);
-
-  const prepareExportResult = useCallback(async (): Promise<ResultState | null> => {
+  async function prepareExportResult(): Promise<ResultState | null> {
     if (!displayedResult) return null;
-    if (!fetchJob || displayedResult.kind === "article") return displayedResult;
+    if (!activeJob || !jobStatus || displayedResult.kind === "article") return displayedResult;
 
-    const { tweets, mainTweet } = await fetchAllTweetsForExport(fetchJob);
+    const { tweets, mainTweet } = await queryClient.fetchQuery({
+      queryKey: ["fetch-job", "export", activeJob.jobId, jobStatus.updatedAt],
+      queryFn: () => fetchAllTweetsForExport(activeJob, jobStatus),
+    });
+
     return buildJobResult(
-      fetchJob.requestType,
+      activeJob.requestType,
       tweets,
       mainTweet,
-      fetchJob.status,
-      fetchJob.sourceUsername,
+      jobStatus,
+      activeJob.sourceUsername,
     );
-  }, [displayedResult, fetchAllTweetsForExport, fetchJob]);
+  }
 
-  const handleDownload = useCallback(
-    async (format: ResultExportFormat) => {
-      let exportResult: ResultState | null;
-      try {
-        exportResult = await prepareExportResult();
-      } catch (exportError) {
-        toast.error(
-          exportError instanceof Error ? exportError.message : "Failed to prepare export.",
-        );
-        return;
-      }
-      if (!exportResult) return;
+  async function handleDownload(format: ResultExportFormat) {
+    let exportResult: ResultState | null;
+    try {
+      exportResult = await prepareExportResult();
+    } catch (exportError) {
+      toast.error(exportError instanceof Error ? exportError.message : "Failed to prepare export.");
+      return;
+    }
+    if (!exportResult) return;
 
-      const isPartialExport =
-        exportResult.kind !== "article" &&
-        Boolean(
-          fetchJob &&
-          (fetchJob.status.status === "stopped" ||
-            (fetchJob.status.status === "failed" && hasExportablePosts(exportResult))),
-        );
+    const isPartialExport =
+      exportResult.kind !== "article" &&
+      Boolean(
+        jobStatus &&
+        (jobStatus.status === "stopped" ||
+          (jobStatus.status === "failed" && hasExportablePosts(exportResult))),
+      );
 
-      const payload = getDownloadPayload(exportResult, format, {
-        isPartial: isPartialExport,
+    const payload = getDownloadPayload(exportResult, format, {
+      isPartial: isPartialExport,
+    });
+
+    if (!window.URL?.createObjectURL) {
+      toast.error("Download is not available in this browser.");
+      return;
+    }
+
+    try {
+      const blob = new Blob([payload.content], {
+        type: `${payload.mimeType};charset=utf-8`,
       });
+      const objectUrl = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = payload.filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 0);
+      toast.success(`${payload.label} downloaded.`);
+    } catch {
+      toast.error("Download failed. Try again.");
+    }
+  }
 
-      if (!window.URL?.createObjectURL) {
-        toast.error("Download is not available in this browser.");
-        return;
-      }
-
-      try {
-        const blob = new Blob([payload.content], {
-          type: `${payload.mimeType};charset=utf-8`,
-        });
-        const objectUrl = window.URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = objectUrl;
-        anchor.download = payload.filename;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 0);
-        toast.success(`${payload.label} downloaded.`);
-      } catch {
-        toast.error("Download failed. Try again.");
-      }
-    },
-    [fetchJob, prepareExportResult],
-  );
-
-  const handleCopyMarkdown = useCallback(async () => {
+  async function handleCopyMarkdown() {
     let exportResult: ResultState | null;
     try {
       exportResult = await prepareExportResult();
@@ -706,18 +585,16 @@ export function HeroInput() {
     } catch {
       toast.error("Copy failed. Check clipboard permission and try again.");
     }
-  }, [prepareExportResult]);
+  }
 
-  const visibleDownloadActions = useMemo(() => {
-    if (displayedResult?.kind === "article") {
-      return downloadActions.filter((action) => action.value === "markdown");
-    }
-    return downloadActions;
-  }, [displayedResult]);
+  const visibleDownloadActions =
+    displayedResult?.kind === "article"
+      ? downloadActions.filter((action) => action.value === "markdown")
+      : downloadActions;
   const showMarkdownCopyButton = displayedResult?.kind === "article";
-
   const showDownloadBar =
-    !isLoading && displayedResult && (!fetchJob || isTerminalStatus(fetchJob.status.status));
+    !isLoading && displayedResult && (!jobStatus || isTerminalStatus(jobStatus.status));
+  const canLoadMore = Boolean(jobTweetsQuery.hasNextPage);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-4 px-6">
@@ -790,9 +667,7 @@ export function HeroInput() {
             type="submit"
             disabled={isLoading || isStopping}
           >
-            {isLoading ? (
-              <LoaderCircle className="size-4 animate-spin" />
-            ) : isStopping ? (
+            {isLoading || isStopping ? (
               <LoaderCircle className="size-4 animate-spin" />
             ) : isJobActive ? (
               <Square className="size-4" />
@@ -803,7 +678,7 @@ export function HeroInput() {
         </div>
       </form>
 
-      {fetchJob && (
+      {activeJob && jobStatus && (
         <div
           aria-live="polite"
           className="w-full md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center"
@@ -812,23 +687,19 @@ export function HeroInput() {
             <span className="font-medium capitalize">
               {isStopping && isJobActive
                 ? "Stopping..."
-                : fetchJob.status.status === "running" || fetchJob.status.status === "queued"
+                : jobStatus.status === "running" || jobStatus.status === "queued"
                   ? "Fetching…"
-                  : fetchJob.status.status === "stopped"
+                  : jobStatus.status === "stopped"
                     ? "Stopped"
-                    : fetchJob.status.status === "completed"
+                    : jobStatus.status === "completed"
                       ? "Complete"
                       : "Failed"}
             </span>
-            <span>{fetchJob.status.pagesFetched} pages</span>
-            <span>{fetchJob.status.storedTweets} tweets</span>
-            {fetchJob.status.chargedCredits > 0 && (
-              <span>{fetchJob.status.chargedCredits} credits</span>
-            )}
-            {fetchJob.status.error && (
-              <span className="text-destructive">
-                {fetchJob.status.error.message ?? "Unknown error"}
-              </span>
+            <span>{jobStatus.pagesFetched} pages</span>
+            <span>{jobStatus.storedTweets} tweets</span>
+            {jobStatus.chargedCredits > 0 && <span>{jobStatus.chargedCredits} credits</span>}
+            {jobStatus.error && (
+              <span className="text-destructive">{jobStatus.error.message ?? "Unknown error"}</span>
             )}
             {isJobActive && <LoaderCircle className="size-3.5 animate-spin" />}
           </div>
@@ -878,7 +749,7 @@ export function HeroInput() {
           {examples.map((ex) => (
             <Badge
               key={ex.value}
-              onClick={() => handleExample(ex.value)}
+              onClick={() => setValue(ex.value)}
               className="cursor-pointer rounded-md bg-secondary px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               {ex.label}
@@ -887,7 +758,7 @@ export function HeroInput() {
         </div>
       )}
 
-      {isLoading && !fetchJob && <ResultDisplayLoading />}
+      {isLoading && !activeJob && <ResultDisplayLoading />}
 
       {!isLoading && error && !displayedResult && (
         <p className="animate-in fade-in mt-2 text-sm text-destructive">{error}</p>
@@ -896,11 +767,9 @@ export function HeroInput() {
       {displayedResult && (
         <ResultDisplay
           result={displayedResult}
-          jobStatus={fetchJob?.status}
-          onLoadMore={
-            fetchJob && tweetsOffset + TWEETS_PAGE_SIZE < tweetsTotal ? handleLoadMore : undefined
-          }
-          loadingMore={loadingMore}
+          jobStatus={jobStatus ?? undefined}
+          onLoadMore={canLoadMore ? () => jobTweetsQuery.fetchNextPage() : undefined}
+          loadingMore={jobTweetsQuery.isFetchingNextPage}
         />
       )}
 

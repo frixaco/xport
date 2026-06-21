@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LogOut } from "lucide-react";
 import { usePostHog } from "@posthog/react";
 import { Button } from "@/components/ui/button";
@@ -23,9 +24,15 @@ import {
 } from "@/components/ui/popover";
 import { authClient } from "@/lib/auth-client";
 import { CreditsDisplay } from "@/components/credits-display";
-import { useCreditsStore } from "@/lib/credits-store";
+import { creditsQueryKey } from "@/lib/credits-store";
 
 const ACCOUNT_SEEN_SESSION_KEY = "xport-account-seen";
+const sessionQueryKey = ["auth", "session"] as const;
+
+async function fetchSession(): Promise<typeof authClient.$Infer.Session | null> {
+  const result = await authClient.getSession();
+  return result.data ?? null;
+}
 
 function GitHubIcon({ className }: { className?: string }) {
   return (
@@ -60,9 +67,19 @@ function GoogleIcon({ className }: { className?: string }) {
 
 export function Header() {
   const posthog = usePostHog();
-  const { data: session, isPending } = authClient.useSession();
-  const resetCredits = useCreditsStore((state) => state.reset);
-  const [signInOpen, setSignInOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const sessionQuery = useQuery({
+    queryKey: sessionQueryKey,
+    queryFn: fetchSession,
+  });
+  const signOutMutation = useMutation({
+    mutationFn: () => authClient.signOut(),
+    onSuccess: () => {
+      posthog?.reset();
+      queryClient.setQueryData(sessionQueryKey, null);
+      queryClient.invalidateQueries({ queryKey: creditsQueryKey });
+    },
+  });
 
   const handleSignIn = (provider: "github" | "google") => {
     authClient.signIn.social({
@@ -72,11 +89,10 @@ export function Header() {
   };
 
   const handleSignOut = () => {
-    resetCredits();
-    posthog?.reset();
-    authClient.signOut();
+    signOutMutation.mutate();
   };
 
+  const session = sessionQuery.data;
   const user = session?.user;
   const initials = user?.name
     ? user.name
@@ -152,9 +168,9 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-3">
-        <CreditsDisplay signedIn={!isPending && !!user} />
+        <CreditsDisplay signedIn={!sessionQuery.isPending && !!user} />
 
-        {isPending ? (
+        {sessionQuery.isPending ? (
           <div className="size-8 animate-pulse rounded-full bg-muted" />
         ) : user ? (
           <DropdownMenu>
@@ -187,7 +203,7 @@ export function Header() {
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
-          <Popover open={signInOpen} onOpenChange={setSignInOpen}>
+          <Popover>
             <PopoverTrigger render={<Button variant="outline" size="sm" />}>Sign in</PopoverTrigger>
             <PopoverContent align="end" sideOffset={8}>
               <PopoverHeader>

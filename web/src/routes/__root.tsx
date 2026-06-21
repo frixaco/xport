@@ -1,11 +1,12 @@
 import "../../app/globals.css";
-import { HeadContent, Outlet, Scripts, createRootRoute } from "@tanstack/react-router";
+import type { QueryClient } from "@tanstack/react-query";
+import { HeadContent, Outlet, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
 import { PostHogProvider } from "@posthog/react";
 import { Toaster } from "@/components/ui/sonner";
 
 const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com";
 
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   loader: () => ({
     posthog: {
       apiKey: process.env.PUBLIC_POSTHOG_KEY ?? "",

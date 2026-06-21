@@ -1,7 +1,8 @@
 "use client";
 
-import { create } from "zustand";
 import { authClient } from "@/lib/auth-client";
+
+export type CreditCheckoutSlug = "credits-125" | "credits-1250";
 
 interface CustomerStateLike {
   activeMeters?: Array<Record<string, unknown>>;
@@ -10,17 +11,6 @@ interface CustomerStateLike {
 
 interface MeterLike {
   balance?: unknown;
-}
-
-interface FetchBalanceOptions {
-  setLoading?: boolean;
-}
-
-interface CreditsStoreState {
-  balance: number | null;
-  loading: boolean;
-  fetchBalance: (options?: FetchBalanceOptions) => Promise<void>;
-  reset: () => void;
 }
 
 function asNumber(value: unknown): number {
@@ -41,39 +31,14 @@ function getActiveMeters(data: CustomerStateLike | null | undefined): MeterLike[
   return [];
 }
 
-function extractBalance(data: CustomerStateLike | null | undefined): number {
+export function extractBalance(data: CustomerStateLike | null | undefined): number {
   const meters = getActiveMeters(data);
   return meters.reduce((sum, meter) => sum + asNumber(meter.balance), 0);
 }
 
-export const useCreditsStore = create<CreditsStoreState>((set, get) => ({
-  balance: null,
-  loading: true,
+export const creditsQueryKey = ["credits", "balance"] as const;
 
-  async fetchBalance(options) {
-    const shouldShowLoading = options?.setLoading ?? get().balance === null;
-
-    if (shouldShowLoading) {
-      set({ loading: true });
-    }
-
-    try {
-      const { data } = await authClient.customer.state({}, { cache: "no-store" });
-      const nextBalance = extractBalance(data as CustomerStateLike);
-      set({ balance: nextBalance });
-    } catch {
-      set({ balance: 0 });
-    } finally {
-      if (shouldShowLoading) {
-        set({ loading: false });
-      }
-    }
-  },
-
-  reset() {
-    set({
-      balance: null,
-      loading: true,
-    });
-  },
-}));
+export async function fetchCreditsBalance(): Promise<number> {
+  const { data } = await authClient.customer.state({}, { cache: "no-store" });
+  return extractBalance(data as CustomerStateLike);
+}
