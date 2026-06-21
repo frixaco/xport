@@ -28,7 +28,7 @@ const tools = [
 
 export function ToolCards() {
   return (
-    <div className="mx-auto grid w-full max-w-3xl grid-cols-1 gap-3 px-6 sm:grid-cols-2">
+    <div className="grid w-full max-w-3xl grid-cols-1 gap-3 px-6 sm:grid-cols-2">
       {tools.map((tool) => (
         <Link key={tool.href} to={tool.href} className="group">
           <Card className="bg-background h-full transition-colors hover:bg-input/50">

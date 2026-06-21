@@ -78,7 +78,7 @@ function MediaGallery({ media, altPrefix }: { media: MediaItem[]; altPrefix: str
   const asGrid = media.length > 1;
 
   return (
-    <div className={cn("mt-3 gap-2", asGrid ? "grid sm:grid-cols-2" : "space-y-2")}>
+    <div className={cn("gap-2 pt-3", asGrid ? "grid sm:grid-cols-2" : "flex flex-col")}>
       {media.map((item, index) => (
         <div
           key={`${item.url}-${index}`}
@@ -133,7 +133,7 @@ function TweetRowCard({
   return (
     <article
       className={cn(
-        "space-y-2.5 rounded-md border px-3 py-3",
+        "flex flex-col gap-2.5 rounded-md border px-3 py-3",
         main ? "border-foreground/20 bg-secondary/40" : "bg-background",
       )}
     >
@@ -202,7 +202,7 @@ export function ResultDisplay({
   }
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-2 mt-2 w-full duration-300 md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center">
+    <div className="animate-in fade-in slide-in-from-bottom-2 w-full pt-2 duration-300 md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center">
       <div className="overflow-hidden rounded-lg border">
         <div className="border-b bg-muted/30 px-3 py-2.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -266,7 +266,7 @@ export function ResultDisplay({
 
 export function ResultDisplayLoading() {
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-2 mt-2 w-full duration-300 md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center">
+    <div className="animate-in fade-in slide-in-from-bottom-2 w-full pt-2 duration-300 md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center">
       <div className="overflow-hidden rounded-lg border">
         <div className="border-b bg-muted/30 px-3 py-2.5">
           <span className="text-sm font-medium text-muted-foreground">Loading results</span>
@@ -281,8 +281,8 @@ export function ResultDisplayLoading() {
 
 function ArticleContent({ result }: { result: ResultState & { kind: "article" } }) {
   return (
-    <article className="space-y-4 p-4 sm:p-5">
-      <header className="space-y-2 rounded-md border bg-muted/20 px-3 py-3">
+    <article className="flex flex-col gap-4 p-4 sm:p-5">
+      <header className="flex flex-col gap-2 rounded-md border bg-muted/20 px-3 py-3">
         <h2 className="text-base font-semibold leading-snug sm:text-lg">{result.title}</h2>
         {result.byline && <p className="text-xs text-muted-foreground">{result.byline}</p>}
         {result.preview && (
@@ -366,14 +366,14 @@ function escapeHtml(text: string): string {
 function ThreadContent({ result }: { result: ResultState & { kind: "thread" } }) {
   const replyStartIndex = result.mainTweet ? 2 : 1;
   return (
-    <div className="space-y-4 p-3">
+    <div className="flex flex-col gap-4 p-3">
       {result.mainTweet && (
-        <div className="space-y-2">
+        <div className="flex flex-col gap-2">
           <TweetRowCard tweet={result.mainTweet} main tag="Main post" index={1} />
         </div>
       )}
       {result.tweets.length > 0 ? (
-        <div className="space-y-2.5">
+        <div className="flex flex-col gap-2.5">
           <div className="flex items-center justify-between px-0.5 text-xs text-muted-foreground">
             <span>Thread replies</span>
             <span>{pluralize(result.tweets.length, "post")}</span>
@@ -395,7 +395,7 @@ function UserTweetsContent({ result }: { result: ResultState & { kind: "user-twe
   }
 
   return (
-    <div className="space-y-2.5 p-3">
+    <div className="flex flex-col gap-2.5 p-3">
       <div className="flex items-center justify-between px-0.5 text-xs text-muted-foreground">
         <span>Latest posts</span>
         <span>{pluralize(result.tweets.length, "post")}</span>

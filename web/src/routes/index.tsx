@@ -61,7 +61,7 @@ function HomePage() {
         <CheckoutToast />
       </Suspense>
       <main className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 pb-6">
-        <div className="w-full max-w-4xl px-6 py-6 sm:px-8">
+        <div className="flex w-full max-w-4xl justify-center px-6 py-6 sm:px-8">
           <HeroInput />
         </div>
       </main>

@@ -28,10 +28,10 @@ const creditPlans = [
 export function CreditsDisplay({ signedIn }: { signedIn: boolean }) {
   if (!signedIn) {
     return (
-      <div className="flex items-center gap-1.5 opacity-50">
+      <div className="flex items-center gap-2 opacity-50">
         <Coins className="size-4" />
         <span className="tabular-nums">—</span>
-        <Button variant="outline" size="sm" className="ml-1 h-7 px-2" disabled>
+        <Button variant="outline" size="sm" className="h-7 px-2" disabled>
           <Plus className="size-3" />
           Top up
         </Button>
@@ -56,7 +56,7 @@ function CreditsDisplayInner() {
   const checkoutSlug = checkoutMutation.isPending ? checkoutMutation.variables : null;
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-2">
       <Coins className="size-4 text-muted-foreground" />
       {balanceQuery.isLoading ? (
         <Loader2 className="size-3 animate-spin text-muted-foreground" />
@@ -69,7 +69,7 @@ function CreditsDisplayInner() {
             <Button
               variant="outline"
               size="sm"
-              className="ml-1 h-7 px-2"
+              className="h-7 px-2"
               disabled={checkoutSlug !== null}
             />
           }
@@ -88,7 +88,7 @@ function CreditsDisplayInner() {
           <div className="pb-2 text-xs text-muted-foreground">
             Rounded up per export (min 1 credit). Stop early bills only fetched posts.
           </div>
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             {creditPlans.map((plan) => (
               <Button
                 key={plan.slug}

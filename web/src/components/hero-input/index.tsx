@@ -597,7 +597,7 @@ export function HeroInput() {
   const canLoadMore = Boolean(jobTweetsQuery.hasNextPage);
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-4 px-6">
+    <div className="flex w-full max-w-3xl flex-col items-center gap-4 px-6">
       {!isActive && (
         <div className="animate-in fade-in flex flex-col items-center gap-2 text-center duration-300">
           <h1 className="text-center text-2xl font-bold tracking-tight sm:text-3xl">
@@ -617,7 +617,7 @@ export function HeroInput() {
         )}
         onSubmit={handleSubmit}
       >
-        <div className="relative mt-4 flex w-full items-center gap-2" role="search">
+        <div className="relative flex w-full items-center gap-2 pt-4" role="search">
           {showResultLayout && (
             <Button
               type="button"
@@ -707,7 +707,7 @@ export function HeroInput() {
       )}
 
       {showDownloadBar && (
-        <div className="animate-in fade-in mt-1 w-full duration-300 md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center">
+        <div className="animate-in fade-in w-full pt-1 duration-300 md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center">
           <div className="flex flex-wrap items-center gap-1.5 rounded-md border bg-muted/20 p-1.5">
             <span className="px-2 text-[11px] uppercase tracking-wide text-muted-foreground">
               Download as
@@ -761,7 +761,7 @@ export function HeroInput() {
       {isLoading && !activeJob && <ResultDisplayLoading />}
 
       {!isLoading && error && !displayedResult && (
-        <p className="animate-in fade-in mt-2 text-sm text-destructive">{error}</p>
+        <p className="animate-in fade-in pt-2 text-sm text-destructive">{error}</p>
       )}
 
       {displayedResult && (
