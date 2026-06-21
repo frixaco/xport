@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { auth } from "@/lib/auth";
-import { parseTweetId, parseUsername } from "@/lib/url-parser";
+import { parseTwitterInput } from "@/lib/url-parser";
 import { ApiAccessError, assertSufficientCredits } from "@/lib/api-access";
+import { errorJson } from "@/lib/api-routes";
 import { createFetchJob, runFetchLoop, type FetchJobRequestType } from "@/lib/fetch-job";
 
 export const Route = createFileRoute("/api/fetch-jobs/$")({
@@ -10,51 +11,35 @@ export const Route = createFileRoute("/api/fetch-jobs/$")({
       POST: async ({ request }) => {
         const session = await auth.api.getSession({ headers: request.headers });
         if (!session) {
-          return Response.json({ error: "Authentication required." }, { status: 401 });
+          return errorJson("Authentication required.", 401);
         }
 
         let body: { input?: string };
         try {
           body = await request.json();
         } catch {
-          return Response.json({ error: "Invalid JSON body." }, { status: 400 });
+          return errorJson("Invalid JSON body.", 400);
         }
 
         const input = body.input?.trim();
         if (!input) {
-          return Response.json({ error: "Missing required field: input." }, { status: 400 });
+          return errorJson("Missing required field: input.", 400);
         }
 
-        let requestType: FetchJobRequestType;
-        let inputNormalized: string;
-
-        const tweetId = parseTweetId(input);
-        if (tweetId) {
-          requestType = "thread";
-          inputNormalized = tweetId;
-        } else {
-          const username = parseUsername(input);
-          if (username) {
-            requestType = "user";
-            inputNormalized = username;
-          } else {
-            return Response.json(
-              { error: "Invalid input. Provide a valid tweet URL/ID or username." },
-              { status: 400 },
-            );
-          }
+        const parsed = parseTwitterInput(input);
+        if (!parsed) {
+          return errorJson("Invalid input. Provide a valid tweet URL/ID or username.", 400);
         }
+        const requestType: FetchJobRequestType = parsed.type === "tweet" ? "thread" : "user";
+        const inputNormalized = parsed.type === "tweet" ? parsed.tweetId : parsed.username;
 
         try {
           await assertSufficientCredits(request, 1);
         } catch (error) {
           if (error instanceof ApiAccessError) {
-            return Response.json(
-              { error: error.message, code: error.code },
-              { status: error.status },
-            );
+            return errorJson(error.message, error.status, { code: error.code });
           }
-          return Response.json({ error: "Could not verify credits." }, { status: 500 });
+          return errorJson("Could not verify credits.", 500);
         }
 
         const jobId = await createFetchJob({

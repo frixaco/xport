@@ -3,7 +3,6 @@ export type DetectedType = "Tweet" | "User" | "Thread" | "Article" | "Bookmarks"
 export type RequestType = "thread" | "user-tweets" | "article";
 
 export interface RequestConfig {
-  endpoint: string;
   type: RequestType;
 }
 

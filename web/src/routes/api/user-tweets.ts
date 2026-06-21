@@ -1,118 +1,62 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { fetchUserLastTweets, XApiError } from "@/lib/x-api";
+import { fetchUserLastTweets } from "@/lib/x-api";
 import { parseUsername } from "@/lib/url-parser";
-import { ApiAccessError, assertSufficientCredits, ingestCreditsUsage } from "@/lib/api-access";
+import { assertSufficientCredits } from "@/lib/api-access";
+import { calculateTweetListCredits, MIN_PREFLIGHT_CREDITS } from "@/lib/credits";
 import {
-  buildUsageMetadata,
-  calculateTweetListCredits,
-  MIN_PREFLIGHT_CREDITS,
-  withUsageMetadata,
-} from "@/lib/credits";
+  errorJson,
+  firstSearchParam,
+  jsonWithChargedUsage,
+  parseBooleanSearchParam,
+  withApiRouteErrors,
+} from "@/lib/api-routes";
 
 export const Route = createFileRoute("/api/user-tweets")({
   server: {
     handlers: {
       GET: async ({ request }) => {
         const url = new URL(request.url);
-        const rawUserInput =
-          url.searchParams.get("userName") ??
-          url.searchParams.get("username") ??
-          url.searchParams.get("url") ??
-          url.searchParams.get("input");
+        const rawUserInput = firstSearchParam(url, ["userName", "username", "url", "input"]);
 
         if (!rawUserInput) {
-          return Response.json(
-            {
-              error: "Missing required query param: userName (or username/url/input).",
-            },
-            { status: 400 },
-          );
+          return errorJson("Missing required query param: userName (or username/url/input).", 400);
         }
 
         const userName = parseUsername(rawUserInput);
         if (!userName) {
-          return Response.json(
-            {
-              error: "Invalid user input. Provide a valid @username, username, or profile URL.",
-            },
-            { status: 400 },
+          return errorJson(
+            "Invalid user input. Provide a valid @username, username, or profile URL.",
+            400,
           );
         }
 
-        const includeRepliesRaw = url.searchParams.get("includeReplies");
-        let includeReplies = false;
-        if (includeRepliesRaw !== null) {
-          const normalized = includeRepliesRaw.trim().toLowerCase();
-          if (["1", "true", "yes"].includes(normalized)) includeReplies = true;
-        }
-
+        const includeReplies = parseBooleanSearchParam(url.searchParams.get("includeReplies"));
         const cursor = url.searchParams.get("cursor") ?? undefined;
-        try {
+        return withApiRouteErrors(async () => {
           await assertSufficientCredits(request, MIN_PREFLIGHT_CREDITS);
           const data = await fetchUserLastTweets(userName, cursor);
           const tweetCount = Array.isArray(data.data?.tweets) ? data.data.tweets.length : 0;
           const chargedCredits = calculateTweetListCredits(tweetCount);
-          const charged = await ingestCreditsUsage(request, {
-            credits: chargedCredits,
-          });
-          const usageMetadata = buildUsageMetadata({
-            charged,
-            chargedCredits,
-            tweetCount,
-          });
 
           if (includeReplies) {
-            return Response.json(withUsageMetadata(data, usageMetadata), {
-              status: 200,
-              headers: {
-                "Cache-Control": "no-store",
-                "X-Xport-Credits-Charged": String(usageMetadata.chargedCredits),
-              },
-            });
+            return jsonWithChargedUsage(request, data, { credits: chargedCredits, tweetCount });
           }
 
           const tweets = data.data?.tweets ?? [];
           const filteredTweets = tweets.filter((tweet) => !(tweet.isReply || tweet.inReplyToId));
 
-          return Response.json(
-            withUsageMetadata(
-              {
-                ...data,
-                data: {
-                  ...data.data,
-                  tweets: filteredTweets,
-                },
-              },
-              usageMetadata,
-            ),
+          return jsonWithChargedUsage(
+            request,
             {
-              status: 200,
-              headers: {
-                "Cache-Control": "no-store",
-                "X-Xport-Credits-Charged": String(usageMetadata.chargedCredits),
+              ...data,
+              data: {
+                ...data.data,
+                tweets: filteredTweets,
               },
             },
+            { credits: chargedCredits, tweetCount },
           );
-        } catch (error) {
-          if (error instanceof ApiAccessError) {
-            return Response.json(
-              { error: error.message, code: error.code },
-              { status: error.status >= 400 && error.status <= 599 ? error.status : 500 },
-            );
-          }
-
-          if (error instanceof XApiError) {
-            return Response.json(
-              { error: error.message, details: error.details },
-              { status: error.status >= 400 && error.status <= 599 ? error.status : 500 },
-            );
-          }
-
-          return Response.json(
-            { error: "Unexpected error while fetching user tweets." },
-            { status: 500 },
-          );
-        }
+        }, "Unexpected error while fetching user tweets.");
       },
     },
   },

@@ -1,10 +1,11 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/checkout/success")({
-  component: CheckoutSuccessPage,
+  beforeLoad: ({ search }) => {
+    throw redirect({
+      to: "/",
+      search: { checkout_id: (search as { checkout_id?: string }).checkout_id },
+    });
+  },
+  component: () => null,
 });
-
-function CheckoutSuccessPage() {
-  const search = Route.useSearch() as { checkout_id?: string };
-  redirect({ to: "/", search: { checkout_id: search.checkout_id } });
-}

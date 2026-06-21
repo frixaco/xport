@@ -7,7 +7,7 @@ interface UsageMetadataInput {
   tweetCount?: number;
 }
 
-interface XportUsageMetadata {
+export interface XportUsageMetadata {
   charged: boolean;
   chargedCredits: number;
   tweetCount?: number;

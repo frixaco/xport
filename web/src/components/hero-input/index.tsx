@@ -19,9 +19,9 @@ import type {
   TweetCardModel,
 } from "./types";
 import {
-  badgeColor,
   buildRequestConfig,
   detectUrlType,
+  detectedBadgeColor,
   examples,
   extractErrorMessage,
   extractUsernameFromTweetCard,
@@ -100,6 +100,40 @@ function buildJobResult(
   };
 }
 
+async function fetchJobTweetPage(
+  jobId: string,
+  requestType: FetchJobRequestType,
+  offset: number,
+  limit: number,
+): Promise<{ cards: TweetCardModel[]; mainTweet: TweetCardModel | null; total: number } | null> {
+  const res = await fetch(`/api/fetch-jobs/${jobId}/tweets?offset=${offset}&limit=${limit}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+
+  const data = (await res.json()) as {
+    tweets?: unknown[];
+    mainTweet?: unknown;
+    total?: number;
+  };
+  const mainTweet =
+    requestType === "thread" && data.mainTweet
+      ? (normalizeTweetCards([data.mainTweet])[0] ?? null)
+      : null;
+
+  return {
+    cards: normalizeTweetCards(data.tweets ?? []),
+    mainTweet,
+    total: typeof data.total === "number" ? data.total : 0,
+  };
+}
+
+function hasExportablePosts(result: ResultState): boolean {
+  if (result.kind === "thread") return Boolean(result.mainTweet) || result.tweets.length > 0;
+  if (result.kind === "user-tweets") return result.tweets.length > 0;
+  return false;
+}
+
 export function HeroInput() {
   const navigate = useNavigate();
   const [value, setValue] = useState("");
@@ -174,6 +208,14 @@ export function HeroInput() {
     [navigate],
   );
 
+  const resetJobData = useCallback(() => {
+    setFetchJob(null);
+    setJobTweets([]);
+    setJobMainTweet(null);
+    setTweetsOffset(0);
+    setTweetsTotal(0);
+  }, []);
+
   const handleBackToHome = useCallback(() => {
     if (isLoading) return;
     stopPolling();
@@ -184,48 +226,26 @@ export function HeroInput() {
     setError(null);
     setHasSubmitted(false);
     setMarkdownCopied(false);
-    setFetchJob(null);
-    setJobTweets([]);
-    setJobMainTweet(null);
-    setTweetsOffset(0);
-    setTweetsTotal(0);
-  }, [isLoading, setJobIdInUrl, stopPolling]);
+    resetJobData();
+  }, [isLoading, resetJobData, setJobIdInUrl, stopPolling]);
 
   const fetchTweets = useCallback(
     async (jobId: string, requestType: FetchJobRequestType, offset: number, append: boolean) => {
-      const res = await fetch(
-        `/api/fetch-jobs/${jobId}/tweets?offset=${offset}&limit=${TWEETS_PAGE_SIZE}`,
-        { cache: "no-store" },
-      );
-      if (!res.ok) return;
-
-      const data = (await res.json()) as {
-        tweets?: unknown[];
-        mainTweet?: unknown;
-        total?: number;
-      };
-
-      const cards = normalizeTweetCards(data.tweets ?? []);
-      const total = typeof data.total === "number" ? data.total : 0;
-
-      let main: TweetCardModel | null = null;
-      if (requestType === "thread" && data.mainTweet) {
-        const normalized = normalizeTweetCards([data.mainTweet]);
-        main = normalized[0] ?? null;
-      }
+      const page = await fetchJobTweetPage(jobId, requestType, offset, TWEETS_PAGE_SIZE);
+      if (!page) return;
 
       if (append) {
         setJobTweets((prev) => {
           const existingIds = new Set(prev.map((t) => t.id));
-          const fresh = cards.filter((c) => !existingIds.has(c.id));
+          const fresh = page.cards.filter((c) => !existingIds.has(c.id));
           return [...prev, ...fresh];
         });
       } else {
-        setJobTweets(cards);
+        setJobTweets(page.cards);
       }
 
-      if (main) setJobMainTweet(main);
-      setTweetsTotal(total);
+      if (page.mainTweet) setJobMainTweet(page.mainTweet);
+      setTweetsTotal(page.total);
     },
     [],
   );
@@ -238,38 +258,26 @@ export function HeroInput() {
     let total = 0;
 
     while (true) {
-      const res = await fetch(
-        `/api/fetch-jobs/${job.jobId}/tweets?offset=${offset}&limit=${EXPORT_FETCH_PAGE_SIZE}`,
-        { cache: "no-store" },
+      const page = await fetchJobTweetPage(
+        job.jobId,
+        job.requestType,
+        offset,
+        EXPORT_FETCH_PAGE_SIZE,
       );
-      if (!res.ok) {
-        throw new Error(`Request failed (${res.status}).`);
-      }
+      if (!page) throw new Error("Request failed while loading export data.");
 
-      const data = (await res.json()) as {
-        tweets?: unknown[];
-        mainTweet?: unknown;
-        total?: number;
-      };
-      const cards = normalizeTweetCards(data.tweets ?? []);
-      const pageTotal = typeof data.total === "number" ? data.total : 0;
-      total = Math.max(total, pageTotal);
+      total = Math.max(total, page.total);
+      if (page.mainTweet) mainTweet = page.mainTweet;
 
-      if (job.requestType === "thread" && data.mainTweet) {
-        const normalizedMain = normalizeTweetCards([data.mainTweet]);
-        const main = normalizedMain[0] ?? null;
-        if (main) mainTweet = main;
-      }
-
-      cards.forEach((card) => {
+      page.cards.forEach((card) => {
         if (seenIds.has(card.id)) return;
         seenIds.add(card.id);
         tweets.push(card);
       });
 
-      if (cards.length === 0) break;
+      if (page.cards.length === 0) break;
 
-      offset += cards.length;
+      offset += page.cards.length;
       if (total > 0 && offset >= total) break;
     }
 
@@ -339,11 +347,7 @@ export function HeroInput() {
       setError(null);
       setIsStopping(false);
       setResult(null);
-      setFetchJob(null);
-      setJobTweets([]);
-      setJobMainTweet(null);
-      setTweetsOffset(0);
-      setTweetsTotal(0);
+      resetJobData();
       stopPolling();
 
       try {
@@ -410,7 +414,7 @@ export function HeroInput() {
     return () => {
       cancelled = true;
     };
-  }, [fetchTweets, setJobIdInUrl, startPolling, stopPolling]);
+  }, [fetchTweets, resetJobData, setJobIdInUrl, startPolling, stopPolling]);
 
   useEffect(() => {
     if (!fetchJob) return;
@@ -494,11 +498,7 @@ export function HeroInput() {
       setError(null);
       setMarkdownCopied(false);
       setIsStopping(false);
-      setFetchJob(null);
-      setJobTweets([]);
-      setJobMainTweet(null);
-      setTweetsOffset(0);
-      setTweetsTotal(0);
+      resetJobData();
       stopPolling();
       setJobIdInUrl(null, { clearInput: clearInputQueryParam });
 
@@ -515,7 +515,7 @@ export function HeroInput() {
       if (currentRequestConfig.type === "article") {
         setIsLoading(true);
         try {
-          const response = await fetch(currentRequestConfig.endpoint, {
+          const response = await fetch(`/api/article?input=${encodeURIComponent(trimmed)}`, {
             method: "GET",
             cache: "no-store",
           });
@@ -584,7 +584,7 @@ export function HeroInput() {
         setIsLoading(false);
       }
     },
-    [isLoading, setJobIdInUrl, startPolling, stopPolling],
+    [isLoading, resetJobData, setJobIdInUrl, startPolling, stopPolling],
   );
 
   const handleSubmit = useCallback(
@@ -618,41 +618,39 @@ export function HeroInput() {
     void runExport(input, { clearInputQueryParam: true });
   }, [runExport]);
 
+  const prepareExportResult = useCallback(async (): Promise<ResultState | null> => {
+    if (!result) return null;
+    if (!fetchJob || result.kind === "article") return result;
+
+    const { tweets, mainTweet } = await fetchAllTweetsForExport(fetchJob);
+    return buildJobResult(
+      fetchJob.requestType,
+      tweets,
+      mainTweet,
+      fetchJob.status,
+      fetchJob.sourceUsername,
+    );
+  }, [fetchAllTweetsForExport, fetchJob, result]);
+
   const handleDownload = useCallback(
     async (format: ResultExportFormat) => {
-      if (!result) return;
-      let exportResult = result;
-
-      if (fetchJob && result.kind !== "article") {
-        try {
-          const { tweets, mainTweet } = await fetchAllTweetsForExport(fetchJob);
-          exportResult = buildJobResult(
-            fetchJob.requestType,
-            tweets,
-            mainTweet,
-            fetchJob.status,
-            fetchJob.sourceUsername,
-          );
-        } catch (exportError) {
-          toast.error(
-            exportError instanceof Error ? exportError.message : "Failed to prepare export.",
-          );
-          return;
-        }
+      let exportResult: ResultState | null;
+      try {
+        exportResult = await prepareExportResult();
+      } catch (exportError) {
+        toast.error(
+          exportError instanceof Error ? exportError.message : "Failed to prepare export.",
+        );
+        return;
       }
+      if (!exportResult) return;
 
-      const hasExportedPosts =
-        exportResult.kind === "thread"
-          ? Boolean(exportResult.mainTweet) || exportResult.tweets.length > 0
-          : exportResult.kind === "user-tweets"
-            ? exportResult.tweets.length > 0
-            : false;
       const isPartialExport =
         exportResult.kind !== "article" &&
         Boolean(
           fetchJob &&
           (fetchJob.status.status === "stopped" ||
-            (fetchJob.status.status === "failed" && hasExportedPosts)),
+            (fetchJob.status.status === "failed" && hasExportablePosts(exportResult))),
         );
 
       const payload = getDownloadPayload(exportResult, format, {
@@ -681,30 +679,18 @@ export function HeroInput() {
         toast.error("Download failed. Try again.");
       }
     },
-    [result, fetchJob, fetchAllTweetsForExport],
+    [fetchJob, prepareExportResult],
   );
 
   const handleCopyMarkdown = useCallback(async () => {
-    if (!result) return;
-    let exportResult = result;
-
-    if (fetchJob && result.kind !== "article") {
-      try {
-        const { tweets, mainTweet } = await fetchAllTweetsForExport(fetchJob);
-        exportResult = buildJobResult(
-          fetchJob.requestType,
-          tweets,
-          mainTweet,
-          fetchJob.status,
-          fetchJob.sourceUsername,
-        );
-      } catch (exportError) {
-        toast.error(
-          exportError instanceof Error ? exportError.message : "Failed to prepare export.",
-        );
-        return;
-      }
+    let exportResult: ResultState | null;
+    try {
+      exportResult = await prepareExportResult();
+    } catch (exportError) {
+      toast.error(exportError instanceof Error ? exportError.message : "Failed to prepare export.");
+      return;
     }
+    if (!exportResult) return;
 
     const payload = getMarkdownCopyPayload(exportResult);
 
@@ -720,7 +706,7 @@ export function HeroInput() {
     } catch {
       toast.error("Copy failed. Check clipboard permission and try again.");
     }
-  }, [result, fetchJob, fetchAllTweetsForExport]);
+  }, [prepareExportResult]);
 
   useEffect(() => {
     if (!markdownCopied) return;
@@ -796,7 +782,7 @@ export function HeroInput() {
                 aria-live="polite"
                 className={cn(
                   "absolute right-4 top-1/2 -translate-y-1/2 border-0 rounded-sm",
-                  badgeColor[detected],
+                  detectedBadgeColor,
                 )}
               >
                 {detected}

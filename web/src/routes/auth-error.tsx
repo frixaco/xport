@@ -1,10 +1,11 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/auth-error")({
-  component: AuthErrorPage,
+  beforeLoad: ({ search }) => {
+    throw redirect({
+      to: "/",
+      search: { auth_error: (search as { auth_error?: string }).auth_error },
+    });
+  },
+  component: () => null,
 });
-
-function AuthErrorPage() {
-  const search = Route.useSearch() as { auth_error?: string };
-  redirect({ to: "/", search: { auth_error: search.auth_error } });
-}

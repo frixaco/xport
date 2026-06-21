@@ -16,13 +16,7 @@ const IMAGE_EXTENSION_PATTERN = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(?:$|\?)/i;
 const VIDEO_EXTENSION_PATTERN = /\.(mp4|mov|webm|m4v)(?:$|\?)/i;
 const META_USERNAME_PATTERN = /^@([A-Za-z0-9_]{1,15})(?:\s|$|·)/;
 
-export const badgeColor: Record<string, string> = {
-  Tweet: "bg-chart-2/20 text-chart-2",
-  User: "bg-chart-2/20 text-chart-2",
-  Thread: "bg-chart-2/20 text-chart-2",
-  Article: "bg-chart-2/20 text-chart-2",
-  Bookmarks: "bg-chart-2/20 text-chart-2",
-};
+export const detectedBadgeColor = "bg-chart-2/20 text-chart-2";
 
 export const examples = [
   { label: "@elonmusk", value: "@elonmusk" },
@@ -249,37 +243,25 @@ export function buildRequestConfig(
 
   if (detectedType === "Article") {
     const tweetId = parseTweetId(trimmed);
-    return tweetId ? { type: "article", endpoint: `/api/article?tweetId=${tweetId}` } : null;
+    return tweetId ? { type: "article" } : null;
   }
 
   if (detectedType === "Thread" || detectedType === "Tweet") {
-    return {
-      type: "thread",
-      endpoint: `/api/thread?input=${encodeURIComponent(trimmed)}`,
-    };
+    return { type: "thread" };
   }
 
   if (detectedType === "User") {
-    return {
-      type: "user-tweets",
-      endpoint: `/api/user-tweets?input=${encodeURIComponent(trimmed)}`,
-    };
+    return { type: "user-tweets" };
   }
 
   const parsed = parseTwitterInput(trimmed);
   if (!parsed) return null;
 
   if (parsed.type === "tweet") {
-    return {
-      type: "thread",
-      endpoint: `/api/thread?input=${encodeURIComponent(trimmed)}`,
-    };
+    return { type: "thread" };
   }
 
-  return {
-    type: "user-tweets",
-    endpoint: `/api/user-tweets?input=${encodeURIComponent(trimmed)}`,
-  };
+  return { type: "user-tweets" };
 }
 
 function extractUsageMetadata(payload: unknown): UsageMetadata | null {
@@ -468,17 +450,6 @@ export function estimateCostCredits(result: ResultState): number {
 
 export function formatCreditLabel(value: number): string {
   return `${value} credit${value === 1 ? "" : "s"}`;
-}
-
-export function splitSectionTextAndMedia(section: string): {
-  text: string;
-  media: MediaItem[];
-} {
-  const media = extractMediaFromText(section);
-  return {
-    text: stripMediaUrls(section, media),
-    media,
-  };
 }
 
 // ============ Article Content Processing ============
