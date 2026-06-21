@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { fetchUserInfo } from "@/lib/x-api";
 import { parseUsername } from "@/lib/url-parser";
-import { assertSufficientCredits } from "@/lib/api-access";
+import { assertSufficientCredits } from "@/lib/billing-access";
 import { MIN_PREFLIGHT_CREDITS } from "@/lib/credits";
 import {
   errorJson,

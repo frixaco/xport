@@ -85,8 +85,12 @@ export function CheckoutToast() {
 
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.delete("checkout_id");
-    const nextSearch = nextParams.toString();
-    navigate({ to: "/", search: nextSearch || undefined, replace: true });
+    const nextSearch = Object.fromEntries(nextParams);
+    navigate({
+      to: "/",
+      search: Object.keys(nextSearch).length > 0 ? nextSearch : undefined,
+      replace: true,
+    });
 
     void verifyCheckout(checkoutId, toastId, () => cancelled);
     return () => {

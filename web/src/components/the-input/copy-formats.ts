@@ -1,9 +1,9 @@
 import type { ResultState, TweetCardModel } from "./types";
-import { extractUsernameFromMeta } from "./utils";
+import { extractUsernameFromMeta } from "./tweet-card";
 
 export type ResultExportFormat = "markdown" | "json" | "text" | "csv";
 
-export interface ThreadExportOptions {
+interface ThreadExportOptions {
   /** Filter to only the original author's replies in chronological order */
   authorOnly?: boolean;
 }

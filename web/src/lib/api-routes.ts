@@ -1,5 +1,9 @@
 import { auth } from "@/lib/auth";
-import { ApiAccessError, ingestCreditsUsage, type CreditsUsageMetadata } from "@/lib/api-access";
+import {
+  BillingAccessError,
+  ingestCreditsUsage,
+  type CreditsUsageMetadata,
+} from "@/lib/billing-access";
 import { buildUsageMetadata, withUsageMetadata, type XportUsageMetadata } from "@/lib/credits";
 import { getJobStatus, type FetchJobRow } from "@/lib/fetch-job";
 import { XApiError } from "@/lib/x-api";
@@ -26,8 +30,8 @@ export function parseBooleanSearchParam(value: string | null): boolean {
   return value ? ["1", "true", "yes"].includes(value.trim().toLowerCase()) : false;
 }
 
-export function handleApiRouteError(error: unknown, fallbackMessage: string): Response {
-  if (error instanceof ApiAccessError) {
+function handleApiRouteError(error: unknown, fallbackMessage: string): Response {
+  if (error instanceof BillingAccessError) {
     return errorJson(error.message, error.status, { code: error.code });
   }
 

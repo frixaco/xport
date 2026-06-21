@@ -25,7 +25,7 @@ export interface UsageMetadata {
   tweetCount?: number;
 }
 
-export interface ThreadResultState {
+interface ThreadResultState {
   kind: "thread";
   mainTweet: TweetCardModel | null;
   tweets: TweetCardModel[];
@@ -34,17 +34,12 @@ export interface ThreadResultState {
   usage: UsageMetadata | null;
 }
 
-export interface UserTweetsResultState {
+interface UserTweetsResultState {
   kind: "user-tweets";
   tweets: TweetCardModel[];
   username: string | null;
   label: string;
   usage: UsageMetadata | null;
-}
-
-export interface ContentBlockStyle {
-  marker: string;
-  markerEnd: string;
 }
 
 export interface ContentBlock {
@@ -57,7 +52,7 @@ export interface ContentBlock {
   styledText: string;
 }
 
-export interface ArticleResultState {
+interface ArticleResultState {
   kind: "article";
   title: string;
   authorUsername: string | null;
@@ -73,7 +68,7 @@ export interface ArticleResultState {
 
 export type ResultState = ThreadResultState | UserTweetsResultState | ArticleResultState;
 
-export type FetchJobStatus = "running" | "queued" | "completed" | "stopped" | "failed";
+type FetchJobStatus = "running" | "queued" | "completed" | "stopped" | "failed";
 
 export type FetchJobRequestType = "thread" | "user";
 
@@ -92,11 +87,4 @@ export interface FetchJobResumeResponse extends FetchJobStatusResponse {
   requestType: FetchJobRequestType;
   inputRaw: string;
   inputNormalized: string;
-}
-
-export interface FetchJobState {
-  jobId: string;
-  requestType: FetchJobRequestType;
-  sourceUsername: string | null;
-  status: FetchJobStatusResponse;
 }

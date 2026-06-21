@@ -2,11 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { Header } from "@/components/header";
 import { TheInput } from "@/components/the-input";
+import { validateHomeSearch } from "@/components/the-input/search";
 import { AuthErrorToast } from "@/components/auth-error-toast";
 import { CheckoutToast } from "@/components/checkout-toast";
 import { getSiteUrl, SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_TITLE } from "@/lib/seo";
 
 export const Route = createFileRoute("/")({
+  validateSearch: validateHomeSearch,
   head: () => ({
     title: SITE_TITLE,
     meta: [
@@ -27,6 +29,7 @@ export const Route = createFileRoute("/")({
 });
 
 function HomePage() {
+  const search = Route.useSearch();
   const siteUrl = getSiteUrl();
   const structuredData = [
     {
@@ -61,7 +64,7 @@ function HomePage() {
         <CheckoutToast />
       </Suspense>
       <main className="flex min-h-0 flex-1 flex-col items-center justify-center py-6">
-        <TheInput />
+        <TheInput search={search} />
       </main>
     </div>
   );

@@ -1,7 +1,15 @@
 import { ExternalLink, LoaderCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FetchJobStatusResponse, MediaItem, ResultState, TweetCardModel } from "./types";
-import { estimateCostCredits, formatCreditLabel } from "./utils";
+import { estimateCostCredits, formatCreditLabel } from "./display";
+
+function Chip({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <span className={cn("rounded-full border bg-background px-2 py-0.5", className)}>
+      {children}
+    </span>
+  );
+}
 
 function pluralize(count: number, singular: string): string {
   return `${count} ${singular}${count === 1 ? "" : "s"}`;
@@ -11,13 +19,11 @@ function resultSummaryLabel(result: ResultState): string {
   if (result.kind === "article") {
     return pluralize(result.sections.length, "section");
   }
-
-  if (result.kind === "thread") {
-    const total = result.tweets.length + (result.mainTweet ? 1 : 0);
-    return pluralize(total, "post");
-  }
-
-  return pluralize(result.tweets.length, "post");
+  const total =
+    result.kind === "thread"
+      ? result.tweets.length + (result.mainTweet ? 1 : 0)
+      : result.tweets.length;
+  return pluralize(total, "post");
 }
 
 function usageSummaryLabel(result: ResultState): string {
@@ -26,9 +32,7 @@ function usageSummaryLabel(result: ResultState): string {
 }
 
 function resultKindLabel(result: ResultState): string {
-  if (result.kind === "article") return "Article";
-  if (result.kind === "thread") return "Thread";
-  return "User";
+  return result.kind === "article" ? "Article" : result.kind === "thread" ? "Thread" : "User";
 }
 
 const jobStatusBadgeConfig: Record<string, { label: string; className: string }> = {
@@ -68,6 +72,15 @@ function resolveJobBadge(
     return hasResults ? jobStatusBadgeConfig.partial : jobStatusBadgeConfig.stopped;
   }
   return jobStatusBadgeConfig.complete;
+}
+
+function ListHeader({ label, count }: { label: string; count: number }) {
+  return (
+    <div className="flex items-center justify-between px-0.5 text-xs text-muted-foreground">
+      {label}
+      <span>{pluralize(count, "post")}</span>
+    </div>
+  );
 }
 
 function MediaGallery({ media, altPrefix }: { media: MediaItem[]; altPrefix: string }) {
@@ -129,30 +142,24 @@ function TweetRowCard({
   return (
     <article
       className={cn(
-        "flex flex-col gap-2.5 rounded-md border px-3 py-3",
+        "flex flex-col gap-2.5 rounded-md border p-3",
         main ? "border-foreground/20 bg-secondary/40" : "bg-background",
       )}
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          {typeof index === "number" && (
-            <span className="rounded-full border bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-              {index}
-            </span>
-          )}
-          {tag && (
-            <span className="rounded-full border bg-background px-2 py-0.5 text-[10px] tracking-wide text-muted-foreground uppercase">
-              {tag}
-            </span>
-          )}
-          <span className="truncate text-xs text-muted-foreground">{tweet.meta}</span>
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {typeof index === "number" && (
+          <Chip className="px-1.5 text-[10px] font-medium text-muted-foreground">{index}</Chip>
+        )}
+        {tag && (
+          <Chip className="text-[10px] tracking-wide text-muted-foreground uppercase">{tag}</Chip>
+        )}
+        <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{tweet.meta}</span>
         {tweet.url && (
           <a
             href={tweet.url}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           >
             Open
             <ExternalLink className="size-3" />
@@ -199,37 +206,25 @@ export function ResultDisplay({
 
   return (
     <div className="w-full animate-in overflow-hidden rounded-lg border duration-300 fade-in slide-in-from-bottom-2 md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <span className="rounded-full border bg-background px-2 py-0.5 text-[11px] text-muted-foreground">
-            {resultKindLabel(result)}
+      <div className="flex flex-wrap items-center gap-2 border-b bg-muted/30 px-3 py-2.5">
+        <Chip className="text-[11px] text-muted-foreground">{resultKindLabel(result)}</Chip>
+        <span className="text-sm font-medium">{result.label}</span>
+        <Chip className="text-[11px] text-muted-foreground">{resultSummaryLabel(result)}</Chip>
+        {badge && (
+          <span
+            className={cn(
+              "rounded-full border-0 px-2 py-0.5 text-[11px] font-medium",
+              badge.className,
+            )}
+          >
+            {badge.label}
           </span>
-          <span className="text-sm font-medium">{result.label}</span>
-          <span className="rounded-full border bg-background px-2 py-0.5 text-[11px] text-muted-foreground">
-            {resultSummaryLabel(result)}
-          </span>
-          {badge && (
-            <span
-              className={cn(
-                "rounded-full border-0 px-2 py-0.5 text-[11px] font-medium",
-                badge.className,
-              )}
-            >
-              {badge.label}
-            </span>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-          <span className="rounded-full border bg-background px-2 py-0.5">
-            {formatCreditLabel(estimateCostCredits(result))}
-          </span>
-          <span className="rounded-full border bg-background px-2 py-0.5">
-            {usageSummaryLabel(result)}
-          </span>
+        )}
+        <div className="ml-auto flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+          <Chip>{formatCreditLabel(estimateCostCredits(result))}</Chip>
+          <Chip>{usageSummaryLabel(result)}</Chip>
           {typeof result.usage?.tweetCount === "number" && (
-            <span className="rounded-full border bg-background px-2 py-0.5">
-              billed on {pluralize(result.usage.tweetCount, "post")}
-            </span>
+            <Chip>billed on {pluralize(result.usage.tweetCount, "post")}</Chip>
           )}
         </div>
       </div>
@@ -241,10 +236,8 @@ export function ResultDisplay({
           <ArticleContent result={result} />
         ) : result.kind === "thread" ? (
           <ThreadContent result={result} />
-        ) : result.kind === "user-tweets" ? (
-          <UserTweetsContent result={result} />
         ) : (
-          <EmptyPlaceholder />
+          <UserTweetsContent result={result} />
         )}
         {loadingMore && (
           <div className="flex items-center justify-center py-4">
@@ -259,10 +252,10 @@ export function ResultDisplay({
 export function ResultDisplayLoading() {
   return (
     <div className="w-full animate-in overflow-hidden rounded-lg border duration-300 fade-in slide-in-from-bottom-2 md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center">
-      <div className="border-b bg-muted/30 px-3 py-2.5">
-        <span className="text-sm font-medium text-muted-foreground">Loading results</span>
+      <div className="border-b bg-muted/30 px-3 py-2.5 text-sm font-medium text-muted-foreground">
+        Loading results
       </div>
-      <div className="flex h-[26rem] w-full items-center justify-center md:h-[38rem]">
+      <div className="flex h-104 w-full items-center justify-center md:h-152">
         <LoaderCircle className="size-10 animate-spin text-muted-foreground" />
       </div>
     </div>
@@ -272,7 +265,7 @@ export function ResultDisplayLoading() {
 function ArticleContent({ result }: { result: ResultState & { kind: "article" } }) {
   return (
     <article className="flex flex-col gap-4 p-4 sm:p-5">
-      <header className="flex flex-col gap-2 rounded-md border bg-muted/20 px-3 py-3">
+      <header className="flex flex-col gap-2 rounded-md border bg-muted/20 p-3">
         <h2 className="text-base leading-snug font-semibold sm:text-lg">{result.title}</h2>
         {result.byline && <p className="text-xs text-muted-foreground">{result.byline}</p>}
         {result.preview && (
@@ -285,7 +278,7 @@ function ArticleContent({ result }: { result: ResultState & { kind: "article" } 
         <MediaGallery media={[{ type: "image", url: result.coverImageUrl }]} altPrefix="Article" />
       )}
       {result.sections.length > 0 ? (
-        <div className="prose prose-sm dark:prose-invert max-w-none rounded-md border bg-background px-4 py-4 sm:px-5">
+        <div className="prose prose-sm dark:prose-invert max-w-none rounded-md border bg-background p-4 sm:px-5">
           {result.sections.map((block, index) => {
             const displayText = block.styledText || block.text;
             if (!displayText && block.type !== "divider") return null;
@@ -359,10 +352,7 @@ function ThreadContent({ result }: { result: ResultState & { kind: "thread" } })
       {result.mainTweet && <TweetRowCard tweet={result.mainTweet} main tag="Main post" index={1} />}
       {result.tweets.length > 0 ? (
         <div className="flex flex-col gap-2.5">
-          <div className="flex items-center justify-between px-0.5 text-xs text-muted-foreground">
-            <span>Thread replies</span>
-            <span>{pluralize(result.tweets.length, "post")}</span>
-          </div>
+          <ListHeader label="Thread replies" count={result.tweets.length} />
           {result.tweets.map((tweet, index) => (
             <TweetRowCard key={tweet.id} tweet={tweet} index={replyStartIndex + index} />
           ))}
@@ -375,16 +365,11 @@ function ThreadContent({ result }: { result: ResultState & { kind: "thread" } })
 }
 
 function UserTweetsContent({ result }: { result: ResultState & { kind: "user-tweets" } }) {
-  if (result.tweets.length === 0) {
-    return <EmptyPlaceholder />;
-  }
+  if (result.tweets.length === 0) return <EmptyPlaceholder />;
 
   return (
     <div className="flex flex-col gap-2.5 p-3">
-      <div className="flex items-center justify-between px-0.5 text-xs text-muted-foreground">
-        <span>Latest posts</span>
-        <span>{pluralize(result.tweets.length, "post")}</span>
-      </div>
+      <ListHeader label="Latest posts" count={result.tweets.length} />
       {result.tweets.map((tweet, index) => (
         <TweetRowCard key={tweet.id} tweet={tweet} index={index + 1} />
       ))}

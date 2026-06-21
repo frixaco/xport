@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/popover";
 import { authClient } from "@/lib/auth-client";
 import { CreditsDisplay } from "@/components/credits-display";
+import { ModeToggle } from "@/components/mode-toggle";
 import { creditsQueryKey } from "@/lib/credits-store";
 
 const ACCOUNT_SEEN_SESSION_KEY = "xport-account-seen";
@@ -166,6 +167,7 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-3">
+        <ModeToggle />
         <CreditsDisplay signedIn={!sessionQuery.isPending && !!user} />
 
         {sessionQuery.isPending ? (

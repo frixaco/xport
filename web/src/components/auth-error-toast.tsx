@@ -18,8 +18,12 @@ export function AuthErrorToast() {
 
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.delete("auth_error");
-    const nextSearch = nextParams.toString();
-    navigate({ to: "/", search: nextSearch || undefined, replace: true });
+    const nextSearch = Object.fromEntries(nextParams);
+    navigate({
+      to: "/",
+      search: Object.keys(nextSearch).length > 0 ? nextSearch : undefined,
+      replace: true,
+    });
   }, [navigate]);
 
   return null;

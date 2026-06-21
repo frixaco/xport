@@ -9,7 +9,7 @@ interface ErrorLikePayload {
   error?: string;
 }
 
-export interface XAuthor {
+interface XAuthor {
   type?: "user";
   userName: string;
   name: string;
@@ -21,12 +21,12 @@ export interface XAuthor {
   description?: string;
 }
 
-export interface XMediaVariant {
+interface XMediaVariant {
   url: string;
   bitrate?: number;
 }
 
-export interface XMediaItem {
+interface XMediaItem {
   type: string;
   media_url_https?: string;
   url?: string;
@@ -87,13 +87,13 @@ export interface XUserTweetsResponse {
   msg?: string;
 }
 
-export interface XArticleInlineStyleRange {
+interface XArticleInlineStyleRange {
   offset: number;
   length: number;
   style: string;
 }
 
-export interface XArticleContent {
+interface XArticleContent {
   type?: string;
   text?: string;
   url?: string;
@@ -103,7 +103,7 @@ export interface XArticleContent {
   inlineStyleRanges?: XArticleInlineStyleRange[];
 }
 
-export interface XArticle {
+interface XArticle {
   author: XAuthor;
   replyCount?: number;
   likeCount?: number;
@@ -123,7 +123,7 @@ export interface XArticleResponse {
   message?: string;
 }
 
-export interface XUserInfo {
+interface XUserInfo {
   type?: "user";
   userName: string;
   url: string;
@@ -216,7 +216,7 @@ async function parseResponse(response: Response): Promise<unknown> {
   return await response.text();
 }
 
-export async function xApiGet<T>(
+async function xApiGet<T>(
   path: string,
   query: Record<string, QueryValue> = {},
   options?: { apiKey?: string },

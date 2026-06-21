@@ -2,9 +2,9 @@ import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { fetchJobs, fetchTweets } from "@/db/schema";
 import { db } from "@/lib/db";
 import { fetchThreadContext, fetchUserLastTweets, XApiError, type XPost } from "@/lib/x-api";
-import { ingestCreditsUsage } from "@/lib/api-access";
+import { ingestCreditsUsage } from "@/lib/billing-access";
 
-export type FetchJobStatus = "queued" | "running" | "completed" | "stopped" | "failed";
+type FetchJobStatus = "queued" | "running" | "completed" | "stopped" | "failed";
 export type FetchJobRequestType = "thread" | "user";
 const ACTIVE_FETCH_JOB_STATUSES: FetchJobStatus[] = ["queued", "running"];
 

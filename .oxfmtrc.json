@@ -15,7 +15,7 @@
   "embeddedLanguageFormatting": "auto",
   "proseWrap": "preserve",
   "sortTailwindcss": {
-    "stylesheet": "web/app/globals.css",
+    "stylesheet": "web/globals.css",
     "functions": ["cn", "clsx", "cva", "twMerge"],
     "preserveWhitespace": false,
     "preserveDuplicates": false

@@ -1,7 +1,8 @@
-import "../../app/globals.css";
+import "../../globals.css";
 import type { QueryClient } from "@tanstack/react-query";
 import { HeadContent, Outlet, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
 import { PostHogProvider } from "@posthog/react";
+import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 
 const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com";
@@ -45,25 +46,27 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
       <body>
-        {posthog.apiKey ? (
-          <PostHogProvider
-            apiKey={posthog.apiKey}
-            options={{
-              api_host: posthog.apiHost,
-              defaults: "2026-01-30",
-              capture_exceptions: true,
-            }}
-          >
-            {app}
-          </PostHogProvider>
-        ) : (
-          app
-        )}
+        <ThemeProvider defaultTheme="system" storageKey="xport-theme">
+          {posthog.apiKey ? (
+            <PostHogProvider
+              apiKey={posthog.apiKey}
+              options={{
+                api_host: posthog.apiHost,
+                defaults: "2026-01-30",
+                capture_exceptions: true,
+              }}
+            >
+              {app}
+            </PostHogProvider>
+          ) : (
+            app
+          )}
+        </ThemeProvider>
         <Scripts />
       </body>
     </html>

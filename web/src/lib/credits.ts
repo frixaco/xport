@@ -1,6 +1,10 @@
 export const MIN_PREFLIGHT_CREDITS = 1;
 export const TWEETS_PER_CREDIT = 20;
 
+interface MeterLike {
+  balance?: unknown;
+}
+
 interface UsageMetadataInput {
   charged: boolean;
   chargedCredits: number;
@@ -16,6 +20,36 @@ export interface XportUsageMetadata {
 function asNonNegativeInteger(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.floor(value));
+}
+
+function asNumber(value: unknown): number {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function getActiveMeters(data: unknown): MeterLike[] {
+  if (typeof data !== "object" || data === null) return [];
+
+  const state = data as {
+    activeMeters?: unknown;
+    active_meters?: unknown;
+  };
+  if (Array.isArray(state.activeMeters)) return state.activeMeters as MeterLike[];
+  if (Array.isArray(state.active_meters)) return state.active_meters as MeterLike[];
+  return [];
+}
+
+export function extractCreditsBalance(data: unknown): number {
+  const meters = getActiveMeters(data);
+  return meters.reduce((sum, meter) => sum + asNumber(meter.balance), 0);
+}
+
+export function normalizeUsageCredits(value: unknown): number {
+  return Math.max(1, Math.ceil(asNumber(value)));
 }
 
 export function calculateTweetListCredits(tweetCount: number): number {

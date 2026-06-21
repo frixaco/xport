@@ -42,4 +42,3 @@ export const SITE_KEYWORDS = [
   "save x article",
   "twitter export tool",
 ];
-export const SITE_OG_IMAGE_PATH = "/opengraph-image";

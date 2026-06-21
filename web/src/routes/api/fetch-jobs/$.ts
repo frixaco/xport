@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { auth } from "@/lib/auth";
 import { parseTwitterInput } from "@/lib/url-parser";
-import { ApiAccessError, assertSufficientCredits } from "@/lib/api-access";
+import { BillingAccessError, assertSufficientCredits } from "@/lib/billing-access";
 import { errorJson } from "@/lib/api-routes";
 import { createFetchJob, runFetchLoop, type FetchJobRequestType } from "@/lib/fetch-job";
 
@@ -36,7 +36,7 @@ export const Route = createFileRoute("/api/fetch-jobs/$")({
         try {
           await assertSufficientCredits(request, 1);
         } catch (error) {
-          if (error instanceof ApiAccessError) {
+          if (error instanceof BillingAccessError) {
             return errorJson(error.message, error.status, { code: error.code });
           }
           return errorJson("Could not verify credits.", 500);

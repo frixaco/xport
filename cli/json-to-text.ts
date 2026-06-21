@@ -7,7 +7,6 @@ if (!inputFile) {
   process.exit(1);
 }
 
-const _itemsPerFile = parseInt(process.argv[3] || "100", 10);
 const data = JSON.parse(readFileSync(inputFile, "utf-8"));
 
 if (!Array.isArray(data)) {
