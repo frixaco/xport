@@ -9,10 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as ThreadRouteImport } from './routes/thread'
-import { Route as ExportRouteImport } from './routes/export'
 import { Route as AuthErrorRouteImport } from './routes/auth-error'
-import { Route as ArticleRouteImport } from './routes/article'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CheckoutSuccessRouteImport } from './routes/checkout/success'
 import { Route as ApiUserTweetsRouteImport } from './routes/api/user-tweets'
@@ -27,24 +24,9 @@ import { Route as ApiFetchJobsJobIdTweetsRouteImport } from './routes/api/fetch-
 import { Route as ApiFetchJobsJobIdStopRouteImport } from './routes/api/fetch-jobs/$jobId/stop'
 import { Route as ApiFetchJobsJobIdStatusRouteImport } from './routes/api/fetch-jobs/$jobId/status'
 
-const ThreadRoute = ThreadRouteImport.update({
-  id: '/thread',
-  path: '/thread',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ExportRoute = ExportRouteImport.update({
-  id: '/export',
-  path: '/export',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AuthErrorRoute = AuthErrorRouteImport.update({
   id: '/auth-error',
   path: '/auth-error',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ArticleRoute = ArticleRouteImport.update({
-  id: '/article',
-  path: '/article',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -115,10 +97,7 @@ const ApiFetchJobsJobIdStatusRoute = ApiFetchJobsJobIdStatusRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/article': typeof ArticleRoute
   '/auth-error': typeof AuthErrorRoute
-  '/export': typeof ExportRoute
-  '/thread': typeof ThreadRoute
   '/$sourceHost/$': typeof SourceHostSplatRoute
   '/api/article': typeof ApiArticleRoute
   '/api/thread': typeof ApiThreadRoute
@@ -134,10 +113,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/article': typeof ArticleRoute
   '/auth-error': typeof AuthErrorRoute
-  '/export': typeof ExportRoute
-  '/thread': typeof ThreadRoute
   '/$sourceHost/$': typeof SourceHostSplatRoute
   '/api/article': typeof ApiArticleRoute
   '/api/thread': typeof ApiThreadRoute
@@ -154,10 +130,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/article': typeof ArticleRoute
   '/auth-error': typeof AuthErrorRoute
-  '/export': typeof ExportRoute
-  '/thread': typeof ThreadRoute
   '/$sourceHost/$': typeof SourceHostSplatRoute
   '/api/article': typeof ApiArticleRoute
   '/api/thread': typeof ApiThreadRoute
@@ -175,10 +148,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/article'
     | '/auth-error'
-    | '/export'
-    | '/thread'
     | '/$sourceHost/$'
     | '/api/article'
     | '/api/thread'
@@ -194,10 +164,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/article'
     | '/auth-error'
-    | '/export'
-    | '/thread'
     | '/$sourceHost/$'
     | '/api/article'
     | '/api/thread'
@@ -213,10 +180,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/article'
     | '/auth-error'
-    | '/export'
-    | '/thread'
     | '/$sourceHost/$'
     | '/api/article'
     | '/api/thread'
@@ -233,10 +197,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ArticleRoute: typeof ArticleRoute
   AuthErrorRoute: typeof AuthErrorRoute
-  ExportRoute: typeof ExportRoute
-  ThreadRoute: typeof ThreadRoute
   SourceHostSplatRoute: typeof SourceHostSplatRoute
   ApiArticleRoute: typeof ApiArticleRoute
   ApiThreadRoute: typeof ApiThreadRoute
@@ -253,32 +214,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/thread': {
-      id: '/thread'
-      path: '/thread'
-      fullPath: '/thread'
-      preLoaderRoute: typeof ThreadRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/export': {
-      id: '/export'
-      path: '/export'
-      fullPath: '/export'
-      preLoaderRoute: typeof ExportRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/auth-error': {
       id: '/auth-error'
       path: '/auth-error'
       fullPath: '/auth-error'
       preLoaderRoute: typeof AuthErrorRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/article': {
-      id: '/article'
-      path: '/article'
-      fullPath: '/article'
-      preLoaderRoute: typeof ArticleRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -377,10 +317,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ArticleRoute: ArticleRoute,
   AuthErrorRoute: AuthErrorRoute,
-  ExportRoute: ExportRoute,
-  ThreadRoute: ThreadRoute,
   SourceHostSplatRoute: SourceHostSplatRoute,
   ApiArticleRoute: ApiArticleRoute,
   ApiThreadRoute: ApiThreadRoute,

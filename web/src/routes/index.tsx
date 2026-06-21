@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { Header } from "@/components/header";
-import { HeroInput } from "@/components/hero-input";
+import { TheInput } from "@/components/the-input";
 import { AuthErrorToast } from "@/components/auth-error-toast";
 import { CheckoutToast } from "@/components/checkout-toast";
 import { getSiteUrl, SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_TITLE } from "@/lib/seo";
@@ -61,7 +61,7 @@ function HomePage() {
         <CheckoutToast />
       </Suspense>
       <main className="flex min-h-0 flex-1 flex-col items-center justify-center py-6">
-        <HeroInput />
+        <TheInput />
       </main>
     </div>
   );

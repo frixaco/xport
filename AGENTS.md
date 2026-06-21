@@ -6,7 +6,7 @@ Use pnpm.
 - Main public page is `/`.
 - API routes live under `/api/*`.
 - Direct-export routes `/<x.com|twitter.com>/<...>` redirect to `/` with `input=<source-url>` and auto-start export.
-- `/auth-error`, `/checkout/success`, `/thread`, `/article`, and `/export` are utility redirects.
+- `/auth-error` and `/checkout/success` are utility redirects.
 - Keep Social API calls server-side through API routes using `X_API_URL` and `X_API_KEY`.
 - Use both "Twitter" and "X" in user-facing copy when relevant.
 

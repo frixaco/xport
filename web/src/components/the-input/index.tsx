@@ -254,7 +254,7 @@ function getErrorMessage(error: unknown, fallback: string): string | null {
   return error instanceof Error ? error.message : fallback;
 }
 
-export function HeroInput() {
+export function TheInput() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [value, setValue] = useState("");
