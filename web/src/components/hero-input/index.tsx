@@ -28,7 +28,6 @@ import {
   hasRenderableContent,
   normalizeTweetCards,
   normalizeResult,
-  useDebouncedValue,
 } from "./utils";
 import { ResultDisplay, ResultDisplayLoading } from "./result-display";
 import {
@@ -152,15 +151,29 @@ export function HeroInput() {
   const [loadingMore, setLoadingMore] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const markdownCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resumeAttemptedRef = useRef(false);
   const autoStartAttemptedRef = useRef(false);
 
-  const debouncedValue = useDebouncedValue(value, 220);
-  const detected = useMemo(() => detectUrlType(debouncedValue), [debouncedValue]);
-  const hasResults = hasRenderableContent(result);
+  const detected = useMemo(() => detectUrlType(value), [value]);
+  const jobResult = useMemo(
+    () =>
+      fetchJob
+        ? buildJobResult(
+            fetchJob.requestType,
+            jobTweets,
+            jobMainTweet,
+            fetchJob.status,
+            fetchJob.sourceUsername,
+          )
+        : null,
+    [fetchJob, jobMainTweet, jobTweets],
+  );
+  const displayedResult = result ?? jobResult;
+  const hasResults = hasRenderableContent(displayedResult);
   const isJobActive = fetchJob !== null && !isTerminalStatus(fetchJob.status.status);
   const showResultLayout =
-    hasSubmitted || isLoading || Boolean(result) || Boolean(error) || isJobActive;
+    hasSubmitted || isLoading || Boolean(displayedResult) || Boolean(error) || isJobActive;
   const isActive = hasSubmitted || isLoading || hasResults || Boolean(error) || isJobActive;
 
   const handleExample = useCallback((v: string) => setValue(v), []);
@@ -323,116 +336,12 @@ export function HeroInput() {
   );
 
   useEffect(() => {
-    if (resumeAttemptedRef.current) return;
-    if (typeof window === "undefined") return;
-
-    const searchParams = new URLSearchParams(window.location.search);
-    const jobId = searchParams.get(JOB_ID_QUERY_PARAM);
-    if (!jobId) return;
-
-    resumeAttemptedRef.current = true;
-
-    if (!UUID_PATTERN.test(jobId)) {
-      setHasSubmitted(true);
-      setError("Invalid job id.");
-      setJobIdInUrl(null);
-      return;
-    }
-
-    let cancelled = false;
-
-    const resumeFromUrl = async () => {
-      setHasSubmitted(true);
-      setIsLoading(true);
-      setError(null);
-      setIsStopping(false);
-      setResult(null);
-      resetJobData();
+    return () => {
       stopPolling();
-
-      try {
-        const res = await fetch(`/api/fetch-jobs/${jobId}/status`, {
-          cache: "no-store",
-        });
-
-        if (cancelled) return;
-
-        if (res.status === 401) {
-          setError("Sign in to resume this fetch job.");
-          return;
-        }
-
-        if (res.status === 404) {
-          setError("Fetch job not found.");
-          setJobIdInUrl(null);
-          return;
-        }
-
-        if (!res.ok) {
-          throw new Error(`Request failed (${res.status}).`);
-        }
-
-        const payload = (await res.json()) as FetchJobResumeResponse;
-        const requestType = payload.requestType;
-        const sourceInput = payload.inputRaw;
-        const sourceUsername = parseUsername(sourceInput);
-        const status = toFetchJobStatus(payload);
-
-        if (cancelled) return;
-
-        setValue(sourceInput);
-        setFetchJob({
-          jobId,
-          requestType,
-          sourceUsername,
-          status,
-        });
-
-        await fetchTweets(jobId, requestType, 0, false);
-
-        if (cancelled) return;
-
-        if (!isTerminalStatus(status.status)) {
-          startPolling(jobId, requestType, sourceUsername);
-        }
-      } catch (requestError) {
-        if (cancelled) return;
-        setError(
-          requestError instanceof Error
-            ? requestError.message
-            : "Unexpected error while resuming fetch job.",
-        );
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
+      if (markdownCopiedTimerRef.current) {
+        clearTimeout(markdownCopiedTimerRef.current);
       }
     };
-
-    void resumeFromUrl();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchTweets, resetJobData, setJobIdInUrl, startPolling, stopPolling]);
-
-  useEffect(() => {
-    if (!fetchJob) return;
-
-    const status = fetchJob.status;
-    setResult(
-      buildJobResult(
-        fetchJob.requestType,
-        jobTweets,
-        jobMainTweet,
-        status,
-        fetchJob.sourceUsername,
-      ),
-    );
-  }, [fetchJob, jobTweets, jobMainTweet]);
-
-  useEffect(() => {
-    return () => stopPolling();
   }, [stopPolling]);
 
   const handleStopJob = useCallback(async () => {
@@ -604,23 +513,112 @@ export function HeroInput() {
   );
 
   useEffect(() => {
-    if (autoStartAttemptedRef.current) return;
     if (typeof window === "undefined") return;
 
     const searchParams = new URLSearchParams(window.location.search);
-    if (searchParams.has(JOB_ID_QUERY_PARAM)) return;
+    const jobId = searchParams.get(JOB_ID_QUERY_PARAM);
+    if (!jobId) {
+      if (autoStartAttemptedRef.current) return;
 
-    const input = searchParams.get(INPUT_QUERY_PARAM);
-    if (!input) return;
+      const input = searchParams.get(INPUT_QUERY_PARAM);
+      if (!input) return;
 
-    autoStartAttemptedRef.current = true;
-    setValue(input);
-    void runExport(input, { clearInputQueryParam: true });
-  }, [runExport]);
+      autoStartAttemptedRef.current = true;
+      setValue(input);
+      void runExport(input, { clearInputQueryParam: true });
+      return;
+    }
+
+    if (resumeAttemptedRef.current) return;
+    resumeAttemptedRef.current = true;
+
+    if (!UUID_PATTERN.test(jobId)) {
+      setHasSubmitted(true);
+      setError("Invalid job id.");
+      setJobIdInUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const resumeFromUrl = async () => {
+      setHasSubmitted(true);
+      setIsLoading(true);
+      setError(null);
+      setIsStopping(false);
+      setResult(null);
+      resetJobData();
+      stopPolling();
+
+      try {
+        const res = await fetch(`/api/fetch-jobs/${jobId}/status`, {
+          cache: "no-store",
+        });
+
+        if (cancelled) return;
+
+        if (res.status === 401) {
+          setError("Sign in to resume this fetch job.");
+          return;
+        }
+
+        if (res.status === 404) {
+          setError("Fetch job not found.");
+          setJobIdInUrl(null);
+          return;
+        }
+
+        if (!res.ok) {
+          throw new Error(`Request failed (${res.status}).`);
+        }
+
+        const payload = (await res.json()) as FetchJobResumeResponse;
+        const requestType = payload.requestType;
+        const sourceInput = payload.inputRaw;
+        const sourceUsername = parseUsername(sourceInput);
+        const status = toFetchJobStatus(payload);
+
+        if (cancelled) return;
+
+        setValue(sourceInput);
+        setFetchJob({
+          jobId,
+          requestType,
+          sourceUsername,
+          status,
+        });
+
+        await fetchTweets(jobId, requestType, 0, false);
+
+        if (cancelled) return;
+
+        if (!isTerminalStatus(status.status)) {
+          startPolling(jobId, requestType, sourceUsername);
+        }
+      } catch (requestError) {
+        if (cancelled) return;
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "Unexpected error while resuming fetch job.",
+        );
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void resumeFromUrl();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchTweets, resetJobData, runExport, setJobIdInUrl, startPolling, stopPolling]);
 
   const prepareExportResult = useCallback(async (): Promise<ResultState | null> => {
-    if (!result) return null;
-    if (!fetchJob || result.kind === "article") return result;
+    if (!displayedResult) return null;
+    if (!fetchJob || displayedResult.kind === "article") return displayedResult;
 
     const { tweets, mainTweet } = await fetchAllTweetsForExport(fetchJob);
     return buildJobResult(
@@ -630,7 +628,7 @@ export function HeroInput() {
       fetchJob.status,
       fetchJob.sourceUsername,
     );
-  }, [fetchAllTweetsForExport, fetchJob, result]);
+  }, [displayedResult, fetchAllTweetsForExport, fetchJob]);
 
   const handleDownload = useCallback(
     async (format: ResultExportFormat) => {
@@ -702,28 +700,24 @@ export function HeroInput() {
     try {
       await navigator.clipboard.writeText(payload.content);
       setMarkdownCopied(true);
+      if (markdownCopiedTimerRef.current) clearTimeout(markdownCopiedTimerRef.current);
+      markdownCopiedTimerRef.current = setTimeout(() => setMarkdownCopied(false), 1500);
       toast.success(`${payload.label} copied to clipboard.`);
     } catch {
       toast.error("Copy failed. Check clipboard permission and try again.");
     }
   }, [prepareExportResult]);
 
-  useEffect(() => {
-    if (!markdownCopied) return;
-    const timer = window.setTimeout(() => setMarkdownCopied(false), 1500);
-    return () => window.clearTimeout(timer);
-  }, [markdownCopied]);
-
   const visibleDownloadActions = useMemo(() => {
-    if (result?.kind === "article") {
+    if (displayedResult?.kind === "article") {
       return downloadActions.filter((action) => action.value === "markdown");
     }
     return downloadActions;
-  }, [result]);
-  const showMarkdownCopyButton = result?.kind === "article";
+  }, [displayedResult]);
+  const showMarkdownCopyButton = displayedResult?.kind === "article";
 
   const showDownloadBar =
-    !isLoading && result && (!fetchJob || isTerminalStatus(fetchJob.status.status));
+    !isLoading && displayedResult && (!fetchJob || isTerminalStatus(fetchJob.status.status));
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-4 px-6">
@@ -895,13 +889,13 @@ export function HeroInput() {
 
       {isLoading && !fetchJob && <ResultDisplayLoading />}
 
-      {!isLoading && error && !result && (
+      {!isLoading && error && !displayedResult && (
         <p className="animate-in fade-in mt-2 text-sm text-destructive">{error}</p>
       )}
 
-      {result && (
+      {displayedResult && (
         <ResultDisplay
-          result={result}
+          result={displayedResult}
           jobStatus={fetchJob?.status}
           onLoadMore={
             fetchJob && tweetsOffset + TWEETS_PAGE_SIZE < tweetsTotal ? handleLoadMore : undefined

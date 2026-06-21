@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { parseTweetId, parseTwitterInput, parseUsername } from "@/lib/url-parser";
 import type {
   ContentBlock,
@@ -619,15 +618,4 @@ function normalizeArticleContents(contents: unknown[]): ContentBlock[] {
   }
 
   return blocks;
-}
-
-export function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedValue(value), delayMs);
-    return () => window.clearTimeout(timer);
-  }, [delayMs, value]);
-
-  return debouncedValue;
 }

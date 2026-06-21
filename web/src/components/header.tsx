@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/popover";
 import { authClient } from "@/lib/auth-client";
 import { CreditsDisplay } from "@/components/credits-display";
+import { useCreditsStore } from "@/lib/credits-store";
 
 const ACCOUNT_SEEN_SESSION_KEY = "xport-account-seen";
 
@@ -60,6 +61,7 @@ function GoogleIcon({ className }: { className?: string }) {
 export function Header() {
   const posthog = usePostHog();
   const { data: session, isPending } = authClient.useSession();
+  const resetCredits = useCreditsStore((state) => state.reset);
   const [signInOpen, setSignInOpen] = useState(false);
 
   const handleSignIn = (provider: "github" | "google") => {
@@ -70,6 +72,7 @@ export function Header() {
   };
 
   const handleSignOut = () => {
+    resetCredits();
     posthog?.reset();
     authClient.signOut();
   };

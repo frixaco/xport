@@ -16,14 +16,6 @@ import { TWEETS_PER_CREDIT } from "@/lib/credits";
 import { useCreditsStore } from "@/lib/credits-store";
 
 export function CreditsDisplay({ signedIn }: { signedIn: boolean }) {
-  const reset = useCreditsStore((state) => state.reset);
-
-  useEffect(() => {
-    if (!signedIn) {
-      reset();
-    }
-  }, [reset, signedIn]);
-
   if (!signedIn) {
     return (
       <div className="flex items-center gap-1.5 opacity-50">
