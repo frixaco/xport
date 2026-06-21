@@ -1,5 +1,3 @@
-"use client";
-
 import { SubmitEvent, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -599,7 +597,7 @@ export function HeroInput() {
   return (
     <div className="flex w-full max-w-3xl flex-col items-center gap-4 px-6">
       {!isActive && (
-        <div className="animate-in fade-in flex flex-col items-center gap-2 text-center duration-300">
+        <div className="flex animate-in flex-col items-center gap-2 text-center duration-300 fade-in">
           <h1 className="text-center text-2xl font-bold tracking-tight sm:text-3xl">
             Export Tweets, Unroll Threads & Save Posts from X
           </h1>
@@ -611,140 +609,135 @@ export function HeroInput() {
 
       <form
         className={cn(
-          "w-full transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+          "relative flex w-full items-center gap-2 pt-4 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
           showResultLayout && "md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center",
           isActive ? "-translate-y-10" : "translate-y-0",
         )}
         onSubmit={handleSubmit}
+        role="search"
       >
-        <div className="relative flex w-full items-center gap-2 pt-4" role="search">
-          {showResultLayout && (
-            <Button
-              type="button"
-              variant="outline"
-              className="h-12 w-12 shrink-0 p-0"
-              aria-label="Back to home"
-              title="Back to home"
-              disabled={isLoading}
-              onClick={handleBackToHome}
-            >
-              <ArrowLeft className="size-4" />
-            </Button>
-          )}
-          <div className="relative flex-1">
-            <label htmlFor="hero-url-input" className="sr-only">
-              Twitter/X URL or username
-            </label>
-            <Input
-              id="hero-url-input"
-              value={value}
-              type="text"
-              onChange={(e) => setValue(e.target.value)}
-              placeholder="Paste any Twitter/X URL or @username..."
-              className="h-12 pr-20 pl-4"
-              aria-describedby={detected ? "hero-url-type" : undefined}
-              autoComplete="off"
-              disabled={isLoading || isStopping}
-            />
-            {detected && (
-              <Badge
-                id="hero-url-type"
-                variant="secondary"
-                aria-live="polite"
-                className={cn(
-                  "absolute right-4 top-1/2 -translate-y-1/2 border-0 rounded-sm",
-                  detectedBadgeColor,
-                )}
-              >
-                {detected}
-              </Badge>
-            )}
-          </div>
+        {showResultLayout && (
           <Button
-            size="lg"
-            className="h-12 px-5 font-bold"
-            aria-label={isJobActive ? "Stop" : "Submit"}
-            type="submit"
+            type="button"
+            variant="outline"
+            className="h-12 w-12 shrink-0 p-0"
+            aria-label="Back to home"
+            title="Back to home"
             disabled={isLoading || isStopping}
+            onClick={handleBackToHome}
           >
-            {isLoading || isStopping ? (
-              <LoaderCircle className="size-4 animate-spin" />
-            ) : isJobActive ? (
-              <Square className="size-4" />
-            ) : (
-              <ArrowRight className="size-4" />
-            )}
+            <ArrowLeft className="size-4" />
           </Button>
+        )}
+        <div className="relative flex-1">
+          <label htmlFor="hero-url-input" className="sr-only">
+            Twitter/X URL or username
+          </label>
+          <Input
+            id="hero-url-input"
+            value={value}
+            type="text"
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="Paste any Twitter/X URL or @username..."
+            className="h-12 pr-20 pl-4"
+            aria-describedby={detected ? "hero-url-type" : undefined}
+            autoComplete="off"
+            disabled={isLoading || isStopping}
+          />
+          {detected && (
+            <Badge
+              id="hero-url-type"
+              variant="secondary"
+              aria-live="polite"
+              className={cn(
+                "absolute top-1/2 right-4 -translate-y-1/2 rounded-sm border-0",
+                detectedBadgeColor,
+              )}
+            >
+              {detected}
+            </Badge>
+          )}
         </div>
+        <Button
+          size="lg"
+          className="h-12 px-5 font-bold"
+          aria-label={isJobActive ? "Stop" : "Submit"}
+          type="submit"
+          disabled={isLoading || isStopping}
+        >
+          {isLoading || isStopping ? (
+            <LoaderCircle className="size-4 animate-spin" />
+          ) : isJobActive ? (
+            <Square className="size-4" />
+          ) : (
+            <ArrowRight className="size-4" />
+          )}
+        </Button>
       </form>
 
       {activeJob && jobStatus && (
         <div
           aria-live="polite"
-          className="w-full md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center"
+          className="flex w-full flex-wrap items-center gap-3 rounded-md border bg-muted/20 px-3 py-2 text-xs text-muted-foreground md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center"
         >
-          <div className="flex flex-wrap items-center gap-3 rounded-md border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-            <span className="font-medium capitalize">
-              {isStopping && isJobActive
-                ? "Stopping..."
-                : jobStatus.status === "running" || jobStatus.status === "queued"
-                  ? "Fetching…"
-                  : jobStatus.status === "stopped"
-                    ? "Stopped"
-                    : jobStatus.status === "completed"
-                      ? "Complete"
-                      : "Failed"}
-            </span>
-            <span>{jobStatus.pagesFetched} pages</span>
-            <span>{jobStatus.storedTweets} tweets</span>
-            {jobStatus.chargedCredits > 0 && <span>{jobStatus.chargedCredits} credits</span>}
-            {jobStatus.error && (
-              <span className="text-destructive">{jobStatus.error.message ?? "Unknown error"}</span>
-            )}
-            {isJobActive && <LoaderCircle className="size-3.5 animate-spin" />}
-          </div>
+          <span className="font-medium capitalize">
+            {isStopping && isJobActive
+              ? "Stopping..."
+              : jobStatus.status === "running" || jobStatus.status === "queued"
+                ? "Fetching…"
+                : jobStatus.status === "stopped"
+                  ? "Stopped"
+                  : jobStatus.status === "completed"
+                    ? "Complete"
+                    : "Failed"}
+          </span>
+          <span>{jobStatus.pagesFetched} pages</span>
+          <span>{jobStatus.storedTweets} tweets</span>
+          {jobStatus.chargedCredits > 0 && <span>{jobStatus.chargedCredits} credits</span>}
+          {jobStatus.error && (
+            <span className="text-destructive">{jobStatus.error.message ?? "Unknown error"}</span>
+          )}
+          {isJobActive && <LoaderCircle className="size-3.5 animate-spin" />}
         </div>
       )}
 
       {showDownloadBar && (
-        <div className="animate-in fade-in w-full pt-1 duration-300 md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center">
-          <div className="flex flex-wrap items-center gap-1.5 rounded-md border bg-muted/20 p-1.5">
-            <span className="px-2 text-[11px] uppercase tracking-wide text-muted-foreground">
-              Download as
-            </span>
-            {visibleDownloadActions.map((action) => {
-              return (
-                <Button
-                  key={action.value}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8 rounded-sm px-2.5 text-xs"
-                  onClick={() => handleDownload(action.value)}
-                >
-                  <Download className="size-3.5" />
-                  {action.label}
-                </Button>
-              );
-            })}
-            {showMarkdownCopyButton && (
+        <div className="flex w-full animate-in flex-wrap items-center gap-1.5 rounded-md border bg-muted/20 p-1.5 duration-300 fade-in md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center">
+          <span className="px-2 text-[11px] tracking-wide text-muted-foreground uppercase">
+            Download as
+          </span>
+          {visibleDownloadActions.map((action) => {
+            return (
               <Button
+                key={action.value}
                 type="button"
-                variant={markdownCopied ? "secondary" : "outline"}
+                variant="outline"
                 size="sm"
                 className="h-8 rounded-sm px-2.5 text-xs"
-                onClick={handleCopyMarkdown}
+                onClick={() => handleDownload(action.value)}
               >
-                {markdownCopied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                Copy Markdown
+                <Download className="size-3.5" />
+                {action.label}
               </Button>
-            )}
-          </div>
+            );
+          })}
+          {showMarkdownCopyButton && (
+            <Button
+              type="button"
+              variant={markdownCopied ? "secondary" : "outline"}
+              size="sm"
+              className="h-8 rounded-sm px-2.5 text-xs"
+              onClick={handleCopyMarkdown}
+            >
+              {markdownCopied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+              Copy Markdown
+            </Button>
+          )}
         </div>
       )}
 
       {!isActive && (
-        <div className="animate-in fade-in flex flex-wrap items-center justify-center gap-2 duration-300">
+        <div className="flex animate-in flex-wrap items-center justify-center gap-2 duration-300 fade-in">
           <span className="text-xs text-muted-foreground">Try:</span>
           {examples.map((ex) => (
             <Badge
@@ -761,7 +754,7 @@ export function HeroInput() {
       {isLoading && !activeJob && <ResultDisplayLoading />}
 
       {!isLoading && error && !displayedResult && (
-        <p className="animate-in fade-in pt-2 text-sm text-destructive">{error}</p>
+        <p className="animate-in pt-2 text-sm text-destructive fade-in">{error}</p>
       )}
 
       {displayedResult && (
@@ -773,11 +766,7 @@ export function HeroInput() {
         />
       )}
 
-      {!isActive && (
-        <div className="animate-in fade-in w-full duration-300">
-          <ToolCards />
-        </div>
-      )}
+      {!isActive && <ToolCards className="animate-in duration-300 fade-in" />}
     </div>
   );
 }

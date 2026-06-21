@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useEffectEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";

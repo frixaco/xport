@@ -1,5 +1,3 @@
-"use client";
-
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Coins, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -78,16 +76,15 @@ function CreditsDisplayInner() {
           Top up
         </PopoverTrigger>
         <PopoverContent align="end" sideOffset={8} className="w-72">
-          <PopoverHeader className="gap-1 pb-1">
+          <PopoverHeader className="gap-1 pb-2">
             <PopoverTitle className="font-semibold">Add credits</PopoverTitle>
             <PopoverDescription>
               ~{TWEETS_PER_CREDIT} posts / credit (threads/users).
               <br />1 article / credit.
+              <br />
+              Rounded up per export (min 1 credit). Stop early bills only fetched posts.
             </PopoverDescription>
           </PopoverHeader>
-          <div className="pb-2 text-xs text-muted-foreground">
-            Rounded up per export (min 1 credit). Stop early bills only fetched posts.
-          </div>
           <div className="flex flex-col gap-2">
             {creditPlans.map((plan) => (
               <Button
@@ -101,7 +98,7 @@ function CreditsDisplayInner() {
                   <span className="font-semibold tabular-nums">
                     {numberFormatter.format(plan.credits)} credits
                   </span>
-                  <span className="text-xs tabular-nums text-muted-foreground">
+                  <span className="text-xs text-muted-foreground tabular-nums">
                     ~{numberFormatter.format(plan.credits * TWEETS_PER_CREDIT)} posts
                   </span>
                 </div>

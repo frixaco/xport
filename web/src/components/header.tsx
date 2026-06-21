@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LogOut } from "lucide-react";
@@ -121,7 +119,7 @@ export function Header() {
 
   return (
     <header className="flex items-center justify-between px-6 py-3">
-      <div className="flex gap-2 items-center text-lg font-bold tracking-tight">
+      <div className="flex items-center gap-2 text-lg font-bold tracking-tight">
         <svg viewBox="0 0 512 512" fill="none" className="size-7" aria-hidden="true">
           <defs>
             <linearGradient
@@ -205,30 +203,28 @@ export function Header() {
         ) : (
           <Popover>
             <PopoverTrigger render={<Button variant="outline" size="sm" />}>Sign in</PopoverTrigger>
-            <PopoverContent align="end" sideOffset={8}>
+            <PopoverContent align="end" sideOffset={8} className="flex flex-col gap-2.5">
               <PopoverHeader>
                 <PopoverTitle>Sign in to Xport</PopoverTitle>
                 <PopoverDescription>Choose a provider to continue</PopoverDescription>
               </PopoverHeader>
-              <div className="flex flex-col gap-2.5">
-                <Button
-                  variant="outline"
-                  className="h-10 gap-2.5"
-                  onClick={() => handleSignIn("google")}
-                >
-                  <GoogleIcon className="size-5" />
-                  Continue with Google
-                </Button>
+              <Button
+                variant="outline"
+                className="h-10 gap-2.5"
+                onClick={() => handleSignIn("google")}
+              >
+                <GoogleIcon className="size-5" />
+                Continue with Google
+              </Button>
 
-                <Button
-                  variant="outline"
-                  className="h-10 gap-2.5"
-                  onClick={() => handleSignIn("github")}
-                >
-                  <GitHubIcon className="size-5" />
-                  Continue with GitHub
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                className="h-10 gap-2.5"
+                onClick={() => handleSignIn("github")}
+              >
+                <GitHubIcon className="size-5" />
+                Continue with GitHub
+              </Button>
             </PopoverContent>
           </Popover>
         )}

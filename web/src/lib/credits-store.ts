@@ -1,5 +1,3 @@
-"use client";
-
 import { authClient } from "@/lib/auth-client";
 
 export type CreditCheckoutSlug = "credits-125" | "credits-1250";

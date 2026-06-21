@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { MessagesSquare, Download, FileText, ArrowUpRight } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardAction } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 const tools = [
   {
@@ -26,12 +27,12 @@ const tools = [
   },
 ] as const;
 
-export function ToolCards() {
+export function ToolCards({ className }: { className?: string }) {
   return (
-    <div className="grid w-full max-w-3xl grid-cols-1 gap-3 px-6 sm:grid-cols-2">
+    <div className={cn("grid w-full grid-cols-1 gap-3 sm:grid-cols-2", className)}>
       {tools.map((tool) => (
         <Link key={tool.href} to={tool.href} className="group">
-          <Card className="bg-background h-full transition-colors hover:bg-input/50">
+          <Card className="h-full bg-background transition-colors hover:bg-input/50">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <tool.icon className={`size-4 ${tool.color}`} />

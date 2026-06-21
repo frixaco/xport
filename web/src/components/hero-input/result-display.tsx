@@ -1,6 +1,3 @@
-"use client";
-
-import { Fragment } from "react";
 import { ExternalLink, LoaderCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FetchJobStatusResponse, MediaItem, ResultState, TweetCardModel } from "./types";
@@ -79,42 +76,41 @@ function MediaGallery({ media, altPrefix }: { media: MediaItem[]; altPrefix: str
 
   return (
     <div className={cn("gap-2 pt-3", asGrid ? "grid sm:grid-cols-2" : "flex flex-col")}>
-      {media.map((item, index) => (
-        <div
-          key={`${item.url}-${index}`}
-          className={cn(
-            "overflow-hidden rounded-md border bg-muted/20",
-            asGrid && item.type === "video" && "sm:col-span-2",
-          )}
-        >
-          {item.type === "image" ? (
-            <a href={item.url} target="_blank" rel="noreferrer" className="block">
-              <img
-                src={item.url}
-                alt={`${altPrefix} media ${index + 1}`}
-                className={cn("w-full object-cover", asGrid ? "h-52 sm:h-44" : "max-h-96")}
-                loading="lazy"
-              />
-            </a>
-          ) : (
-            <a
-              href={item.url}
-              target="_blank"
-              rel="noreferrer"
-              className={cn(
-                "flex min-h-32 w-full flex-col items-center justify-center gap-2 p-4 text-center text-sm transition-colors hover:bg-secondary",
-                asGrid ? "h-52 sm:h-44" : "min-h-44",
-              )}
-            >
-              <span className="font-medium">Video attachment</span>
-              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                Open video
-                <ExternalLink className="size-3" />
-              </span>
-            </a>
-          )}
-        </div>
-      ))}
+      {media.map((item, index) =>
+        item.type === "image" ? (
+          <a
+            key={`${item.url}-${index}`}
+            href={item.url}
+            target="_blank"
+            rel="noreferrer"
+            className="block overflow-hidden rounded-md border bg-muted/20"
+          >
+            <img
+              src={item.url}
+              alt={`${altPrefix} media ${index + 1}`}
+              className={cn("w-full object-cover", asGrid ? "h-52 sm:h-44" : "max-h-96")}
+              loading="lazy"
+            />
+          </a>
+        ) : (
+          <a
+            key={`${item.url}-${index}`}
+            href={item.url}
+            target="_blank"
+            rel="noreferrer"
+            className={cn(
+              "flex min-h-32 w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-md border bg-muted/20 p-4 text-center text-sm transition-colors hover:bg-secondary",
+              asGrid ? "h-52 sm:col-span-2 sm:h-44" : "min-h-44",
+            )}
+          >
+            <span className="font-medium">Video attachment</span>
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              Open video
+              <ExternalLink className="size-3" />
+            </span>
+          </a>
+        ),
+      )}
     </div>
   );
 }
@@ -145,7 +141,7 @@ function TweetRowCard({
             </span>
           )}
           {tag && (
-            <span className="rounded-full border bg-background px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+            <span className="rounded-full border bg-background px-2 py-0.5 text-[10px] tracking-wide text-muted-foreground uppercase">
               {tag}
             </span>
           )}
@@ -163,9 +159,9 @@ function TweetRowCard({
           </a>
         )}
       </div>
-      <p className="whitespace-pre-wrap text-sm leading-relaxed">{tweet.text}</p>
+      <p className="text-sm leading-relaxed whitespace-pre-wrap">{tweet.text}</p>
       {tweet.media.length > 0 && (
-        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+        <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
           {pluralize(tweet.media.length, "media item")}
         </p>
       )}
@@ -202,63 +198,59 @@ export function ResultDisplay({
   }
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-2 w-full pt-2 duration-300 md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center">
-      <div className="overflow-hidden rounded-lg border">
-        <div className="border-b bg-muted/30 px-3 py-2.5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="rounded-full border bg-background px-2 py-0.5 text-[11px] text-muted-foreground">
-                {resultKindLabel(result)}
-              </span>
-              <span className="text-sm font-medium">{result.label}</span>
-              <span className="rounded-full border bg-background px-2 py-0.5 text-[11px] text-muted-foreground">
-                {resultSummaryLabel(result)}
-              </span>
-              {badge && (
-                <span
-                  className={cn(
-                    "rounded-full border-0 px-2 py-0.5 text-[11px] font-medium",
-                    badge.className,
-                  )}
-                >
-                  {badge.label}
-                </span>
+    <div className="w-full animate-in overflow-hidden rounded-lg border duration-300 fade-in slide-in-from-bottom-2 md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <span className="rounded-full border bg-background px-2 py-0.5 text-[11px] text-muted-foreground">
+            {resultKindLabel(result)}
+          </span>
+          <span className="text-sm font-medium">{result.label}</span>
+          <span className="rounded-full border bg-background px-2 py-0.5 text-[11px] text-muted-foreground">
+            {resultSummaryLabel(result)}
+          </span>
+          {badge && (
+            <span
+              className={cn(
+                "rounded-full border-0 px-2 py-0.5 text-[11px] font-medium",
+                badge.className,
               )}
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="rounded-full border bg-background px-2 py-0.5">
-                {formatCreditLabel(estimateCostCredits(result))}
-              </span>
-              <span className="rounded-full border bg-background px-2 py-0.5">
-                {usageSummaryLabel(result)}
-              </span>
-              {typeof result.usage?.tweetCount === "number" && (
-                <span className="rounded-full border bg-background px-2 py-0.5">
-                  billed on {pluralize(result.usage.tweetCount, "post")}
-                </span>
-              )}
-            </div>
+            >
+              {badge.label}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="rounded-full border bg-background px-2 py-0.5">
+            {formatCreditLabel(estimateCostCredits(result))}
+          </span>
+          <span className="rounded-full border bg-background px-2 py-0.5">
+            {usageSummaryLabel(result)}
+          </span>
+          {typeof result.usage?.tweetCount === "number" && (
+            <span className="rounded-full border bg-background px-2 py-0.5">
+              billed on {pluralize(result.usage.tweetCount, "post")}
+            </span>
+          )}
+        </div>
+      </div>
+      <div
+        className="h-104 w-full overflow-auto md:h-152"
+        onScroll={onLoadMore ? handleScroll : undefined}
+      >
+        {result.kind === "article" ? (
+          <ArticleContent result={result} />
+        ) : result.kind === "thread" ? (
+          <ThreadContent result={result} />
+        ) : result.kind === "user-tweets" ? (
+          <UserTweetsContent result={result} />
+        ) : (
+          <EmptyPlaceholder />
+        )}
+        {loadingMore && (
+          <div className="flex items-center justify-center py-4">
+            <LoaderCircle className="size-5 animate-spin text-muted-foreground" />
           </div>
-        </div>
-        <div
-          className="h-104 w-full overflow-auto md:h-152"
-          onScroll={onLoadMore ? handleScroll : undefined}
-        >
-          {result.kind === "article" ? (
-            <ArticleContent result={result} />
-          ) : result.kind === "thread" ? (
-            <ThreadContent result={result} />
-          ) : result.kind === "user-tweets" ? (
-            <UserTweetsContent result={result} />
-          ) : (
-            <EmptyPlaceholder />
-          )}
-          {loadingMore && (
-            <div className="flex items-center justify-center py-4">
-              <LoaderCircle className="size-5 animate-spin text-muted-foreground" />
-            </div>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );
@@ -266,14 +258,12 @@ export function ResultDisplay({
 
 export function ResultDisplayLoading() {
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-2 w-full pt-2 duration-300 md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center">
-      <div className="overflow-hidden rounded-lg border">
-        <div className="border-b bg-muted/30 px-3 py-2.5">
-          <span className="text-sm font-medium text-muted-foreground">Loading results</span>
-        </div>
-        <div className="flex h-[26rem] w-full items-center justify-center md:h-[38rem]">
-          <LoaderCircle className="size-10 animate-spin text-muted-foreground" />
-        </div>
+    <div className="w-full animate-in overflow-hidden rounded-lg border duration-300 fade-in slide-in-from-bottom-2 md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center">
+      <div className="border-b bg-muted/30 px-3 py-2.5">
+        <span className="text-sm font-medium text-muted-foreground">Loading results</span>
+      </div>
+      <div className="flex h-[26rem] w-full items-center justify-center md:h-[38rem]">
+        <LoaderCircle className="size-10 animate-spin text-muted-foreground" />
       </div>
     </div>
   );
@@ -283,7 +273,7 @@ function ArticleContent({ result }: { result: ResultState & { kind: "article" } 
   return (
     <article className="flex flex-col gap-4 p-4 sm:p-5">
       <header className="flex flex-col gap-2 rounded-md border bg-muted/20 px-3 py-3">
-        <h2 className="text-base font-semibold leading-snug sm:text-lg">{result.title}</h2>
+        <h2 className="text-base leading-snug font-semibold sm:text-lg">{result.title}</h2>
         {result.byline && <p className="text-xs text-muted-foreground">{result.byline}</p>}
         {result.preview && (
           <p className="rounded-md border bg-background px-3 py-2 text-sm leading-relaxed text-muted-foreground">
@@ -295,40 +285,39 @@ function ArticleContent({ result }: { result: ResultState & { kind: "article" } 
         <MediaGallery media={[{ type: "image", url: result.coverImageUrl }]} altPrefix="Article" />
       )}
       {result.sections.length > 0 ? (
-        <div className="rounded-md border bg-background px-4 py-4 sm:px-5">
-          <div className="prose prose-sm max-w-none dark:prose-invert">
-            {result.sections.map((block, index) => {
-              const displayText = block.styledText || block.text;
-              if (!displayText && block.type !== "divider") return null;
+        <div className="prose prose-sm dark:prose-invert max-w-none rounded-md border bg-background px-4 py-4 sm:px-5">
+          {result.sections.map((block, index) => {
+            const displayText = block.styledText || block.text;
+            if (!displayText && block.type !== "divider") return null;
 
-              if (block.type === "image" || block.type === "gif") {
-                const url = block.previewUrl || block.url;
-                if (!url) return null;
-                return (
-                  <Fragment key={`article-media-${index}`}>
-                    <MediaGallery media={[{ type: "image", url }]} altPrefix="Article" />
-                  </Fragment>
-                );
-              }
-
+            if (block.type === "image" || block.type === "gif") {
+              const url = block.previewUrl || block.url;
+              if (!url) return null;
               return (
-                <Fragment key={`article-block-${index}`}>
-                  <p
-                    className={cn(
-                      "whitespace-pre-wrap text-sm leading-relaxed",
-                      block.type === "blockquote" && "border-l-2 pl-4 italic",
-                      block.type === "header-one" && "text-lg font-semibold",
-                      block.type === "header-two" && "text-base font-semibold",
-                      block.type === "header-three" && "text-sm font-semibold",
-                    )}
-                    dangerouslySetInnerHTML={{
-                      __html: renderBlockHtml(displayText, block.type),
-                    }}
-                  />
-                </Fragment>
+                <MediaGallery
+                  key={`article-media-${index}`}
+                  media={[{ type: "image", url }]}
+                  altPrefix="Article"
+                />
               );
-            })}
-          </div>
+            }
+
+            return (
+              <p
+                key={`article-block-${index}`}
+                className={cn(
+                  "text-sm leading-relaxed whitespace-pre-wrap",
+                  block.type === "blockquote" && "border-l-2 pl-4 italic",
+                  block.type === "header-one" && "text-lg font-semibold",
+                  block.type === "header-two" && "text-base font-semibold",
+                  block.type === "header-three" && "text-sm font-semibold",
+                )}
+                dangerouslySetInnerHTML={{
+                  __html: renderBlockHtml(displayText, block.type),
+                }}
+              />
+            );
+          })}
         </div>
       ) : (
         <EmptyPlaceholder message="No article content returned." />
@@ -367,11 +356,7 @@ function ThreadContent({ result }: { result: ResultState & { kind: "thread" } })
   const replyStartIndex = result.mainTweet ? 2 : 1;
   return (
     <div className="flex flex-col gap-4 p-3">
-      {result.mainTweet && (
-        <div className="flex flex-col gap-2">
-          <TweetRowCard tweet={result.mainTweet} main tag="Main post" index={1} />
-        </div>
-      )}
+      {result.mainTweet && <TweetRowCard tweet={result.mainTweet} main tag="Main post" index={1} />}
       {result.tweets.length > 0 ? (
         <div className="flex flex-col gap-2.5">
           <div className="flex items-center justify-between px-0.5 text-xs text-muted-foreground">
