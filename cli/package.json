@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "lint": "oxlint",
-    "check": "oxfmt --check .",
+    "lint:fix": "oxlint --fix",
+    "check": "pnpm run format:check && pnpm run lint",
+    "format:check": "oxfmt --check .",
     "format": "oxfmt --write .",
     "fetch-thread": "tsx fetch-thread.ts",
     "fetch-article": "tsx fetch-article.ts",

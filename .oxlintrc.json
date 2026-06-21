@@ -1,11 +1,67 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "unicorn", "oxc"],
+  "plugins": [
+    "eslint",
+    "typescript",
+    "unicorn",
+    "oxc",
+    "import",
+    "react",
+    "jsx-a11y",
+    "promise",
+    "node"
+  ],
+  "jsPlugins": ["oxlint-tailwindcss"],
   "categories": {
-    "correctness": "error"
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn"
   },
-  "rules": {},
+  "rules": {
+    "react/react-in-jsx-scope": "off",
+    "jsx-a11y/anchor-has-content": "warn",
+    "jsx-a11y/anchor-is-valid": "warn",
+    "jsx-a11y/click-events-have-key-events": "warn",
+    "jsx-a11y/control-has-associated-label": "warn",
+    "jsx-a11y/label-has-associated-control": "warn",
+    "jsx-a11y/no-noninteractive-element-interactions": "warn",
+    "jsx-a11y/prefer-tag-over-role": "warn",
+    "tailwindcss/no-unknown-classes": "warn",
+    "tailwindcss/no-duplicate-classes": "error",
+    "tailwindcss/no-conflicting-classes": "warn",
+    "tailwindcss/no-deprecated-classes": "warn",
+    "tailwindcss/no-unnecessary-whitespace": "error",
+    "tailwindcss/enforce-sort-order": "warn",
+    "tailwindcss/enforce-shorthand": "warn"
+  },
   "env": {
-    "builtin": true
-  }
+    "builtin": true,
+    "browser": true,
+    "node": true
+  },
+  "settings": {
+    "react": {
+      "version": "19"
+    },
+    "jsx-a11y": {
+      "components": {
+        "Link": "a",
+        "Button": "button"
+      }
+    },
+    "tailwindcss": {
+      "entryPoint": "web/app/globals.css"
+    }
+  },
+  "ignorePatterns": [
+    "node_modules/**",
+    ".output/**",
+    ".tanstack/**",
+    "dist/**",
+    "build/**",
+    "coverage/**",
+    "web/src/routeTree.gen.ts",
+    "web/drizzle/**",
+    "cli/data/**"
+  ]
 }

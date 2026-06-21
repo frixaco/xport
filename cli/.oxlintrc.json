@@ -1,11 +1,15 @@
 {
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "unicorn", "oxc", "node"],
+  "$schema": "../node_modules/oxlint/configuration_schema.json",
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "node", "promise"],
   "categories": {
-    "correctness": "error"
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn"
   },
   "rules": {},
   "env": {
-    "builtin": true
-  }
+    "builtin": true,
+    "node": true
+  },
+  "ignorePatterns": ["data/**"]
 }
