@@ -2,22 +2,18 @@ import { parseTweetId, parseTwitterInput } from "@/lib/url-parser";
 import type { DetectedType, RequestConfig } from "./types";
 
 export const examples = [
-  { label: "@elonmusk", value: "@elonmusk" },
+  { label: "@NASA", value: "@NASA" },
   {
-    label: "x.com/.../status/123",
-    value: "https://x.com/elonmusk/status/1234567890",
+    label: "NASA post",
+    value: "https://x.com/NASA/status/2039490150237909144",
   },
   {
-    label: "x.com/.../thread/123",
-    value: "https://x.com/thorstenball/thread/2020131132965036386",
+    label: "Burak thread",
+    value: "https://x.com/burakeregar/status/2020852442230120752",
   },
   {
-    label: "x.com/.../article/...",
-    value: "https://x.com/elonmusk/status/1234567890/article",
-  },
-  {
-    label: "x.com/.../bookmarks",
-    value: "https://x.com/i/bookmarks",
+    label: "JavaRevisited article",
+    value: "https://x.com/javarevisited/article/2020886352838225926",
   },
 ];
 

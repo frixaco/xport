@@ -1,6 +1,5 @@
-import type { ContentBlock, MediaItem } from "./types";
+import type { ContentBlock } from "./types";
 import { isNonEmptyString, isObject } from "./payload";
-import { extractMediaFromText } from "./tweet-card";
 
 const STYLE_MAP: Record<string, { marker: string; markerEnd: string }> = {
   Bold: { marker: "**", markerEnd: "**" },
@@ -39,7 +38,7 @@ function applyInlineStyles(text: string, ranges: InlineStyleRange[] | undefined)
   return result;
 }
 
-function renderContentBlock(
+function renderContentBlockText(
   block: {
     type?: string;
     text?: string;
@@ -50,62 +49,54 @@ function renderContentBlock(
     inlineStyleRanges?: InlineStyleRange[];
   },
   orderedIndex: number,
-): { text: string; media: MediaItem[] } {
-  const styledText = applyInlineStyles(block.text || "", block.inlineStyleRanges);
-  const media: MediaItem[] = [];
+): string {
+  const textWithMarkers = applyInlineStyles(block.text || "", block.inlineStyleRanges);
 
   switch (block.type) {
     case "header-one":
-      return { text: `## ${styledText}`, media };
+      return `## ${textWithMarkers}`;
 
     case "header-two":
-      return { text: `### ${styledText}`, media };
+      return `### ${textWithMarkers}`;
 
     case "header-three":
-      return { text: `#### ${styledText}`, media };
+      return `#### ${textWithMarkers}`;
 
     case "unordered-list-item":
-      return { text: `- ${styledText}`, media };
+      return `- ${textWithMarkers}`;
 
     case "ordered-list-item":
-      return { text: `${orderedIndex + 1}. ${styledText}`, media };
+      return `${orderedIndex + 1}. ${textWithMarkers}`;
 
     case "image": {
-      if (!block.url) return { text: "", media };
+      if (!block.url) return "";
       const displayUrl = block.previewUrl || block.url;
       const dims = block.width && block.height ? `=${block.width}x${block.height}` : "";
-      return { text: `![](${displayUrl}${dims})`, media };
+      return `![](${displayUrl}${dims})`;
     }
 
     case "gif": {
-      if (!block.url) return { text: "", media };
+      if (!block.url) return "";
       const displayUrl = block.previewUrl || block.url;
-      return { text: `![](${displayUrl})`, media };
+      return `![](${displayUrl})`;
     }
 
     case "divider":
-      return { text: "---", media };
+      return "---";
 
     case "blockquote":
-      return { text: `> ${styledText}`, media };
+      return `> ${textWithMarkers}`;
 
     case "unstyled":
     case "markdown":
-    default: {
-      const textMedia = extractMediaFromText(block.text || "");
-      textMedia.forEach((item) => {
-        if (!media.some((m) => m.url === item.url)) {
-          media.push(item);
-        }
-      });
-      return { text: styledText, media };
-    }
+    default:
+      return textWithMarkers;
   }
 }
 
 function normalizeArticleContentBlock(content: unknown, orderedIndex: number): ContentBlock {
   if (!isObject(content)) {
-    return { type: "unstyled", text: "", styledText: "" };
+    return { type: "unstyled", text: "" };
   }
 
   const type = isNonEmptyString(content.type) ? content.type : "unstyled";
@@ -133,19 +124,18 @@ function normalizeArticleContentBlock(content: unknown, orderedIndex: number): C
     }
   }
 
-  const rendered = renderContentBlock(
+  const renderedText = renderContentBlockText(
     { type, text, url, previewUrl, width, height, inlineStyleRanges },
     orderedIndex,
   );
 
   return {
     type,
-    text: rendered.text,
+    text: renderedText,
     url,
     previewUrl,
     width,
     height,
-    styledText: rendered.text,
   };
 }
 

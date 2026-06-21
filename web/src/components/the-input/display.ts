@@ -1,6 +1,10 @@
 import { TWEETS_PER_CREDIT } from "@/lib/credits";
 import type { ResultState } from "./types";
 
+const pluralForms: Record<string, string> = {
+  reply: "replies",
+};
+
 export function estimateCostCredits(result: ResultState): number {
   if (result.usage?.charged) {
     return Math.max(1, result.usage.chargedCredits);
@@ -14,6 +18,11 @@ export function estimateCostCredits(result: ResultState): number {
   return 1;
 }
 
+export function formatCount(count: number, singular: string): string {
+  const plural = pluralForms[singular] ?? `${singular}s`;
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
 export function formatCreditLabel(value: number): string {
-  return `${value} credit${value === 1 ? "" : "s"}`;
+  return formatCount(value, "credit");
 }

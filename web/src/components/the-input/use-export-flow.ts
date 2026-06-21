@@ -220,6 +220,7 @@ export function useExportFlow(search: HomeSearch) {
     articleMutation.isPending || createJobMutation.isPending || resumeJobMutation.isPending;
   const isStopping = stopJobMutation.isPending;
   const isJobActive = Boolean(jobStatus && !isTerminalStatus(jobStatus.status));
+  const isStopRequested = Boolean(isJobActive && (isStopping || jobStatus?.stopRequested));
   const jobPages = jobTweetsQuery.data?.pages ?? [];
   const jobTweets = getUniqueTweets(jobPages);
   const jobMainTweet = jobPages.find((page) => page.mainTweet)?.mainTweet ?? null;
@@ -243,8 +244,16 @@ export function useExportFlow(search: HomeSearch) {
     getErrorMessage(resumeJobMutation.error, "Unexpected error while resuming fetch job.") ??
     getErrorMessage(jobStatusQuery.error, "Unexpected error while fetching job status.");
   const hasResults = hasRenderableContent(displayedResult);
-  const showResultLayout = isLoading || Boolean(displayedResult) || Boolean(error) || isJobActive;
-  const isActive = isLoading || hasResults || Boolean(error) || isJobActive;
+  const showResultLayout =
+    isLoading || Boolean(activeJob) || Boolean(displayedResult) || Boolean(error) || isJobActive;
+  const isResultContentLoading = Boolean(
+    displayedResult &&
+    displayedResult.kind !== "article" &&
+    !hasResults &&
+    (isJobActive || jobTweetsQuery.isFetching),
+  );
+  const isActive =
+    isLoading || Boolean(activeJob) || Boolean(displayedResult) || Boolean(error) || isJobActive;
 
   function clearAsyncResults() {
     articleMutation.reset();
@@ -300,7 +309,7 @@ export function useExportFlow(search: HomeSearch) {
     event.preventDefault();
 
     if (isJobActive) {
-      if (isStopping || !activeJob) return;
+      if (isStopRequested || !activeJob) return;
       stopJobMutation.mutate(activeJob.jobId);
       return;
     }
@@ -431,8 +440,8 @@ export function useExportFlow(search: HomeSearch) {
     displayedResult?.kind === "article"
       ? downloadActions.filter((action) => action.value === "markdown")
       : downloadActions;
-  const showMarkdownCopyButton = displayedResult?.kind === "article";
-  const showDownloadBar =
+  const showCopyAction = Boolean(displayedResult);
+  const showExportActions =
     !isLoading && displayedResult && (!jobStatus || isTerminalStatus(jobStatus.status));
   const canLoadMore = Boolean(jobTweetsQuery.hasNextPage);
 
@@ -450,13 +459,14 @@ export function useExportFlow(search: HomeSearch) {
     isActive,
     isJobActive,
     isLoading,
-    isStopping,
+    isResultContentLoading,
+    isStopRequested,
     jobStatus,
     loadingMore: jobTweetsQuery.isFetchingNextPage,
     markdownCopied,
     setValue,
-    showDownloadBar,
-    showMarkdownCopyButton,
+    showExportActions,
+    showCopyAction,
     showResultLayout,
     value,
     visibleDownloadActions,

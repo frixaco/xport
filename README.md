@@ -8,7 +8,7 @@ Xport exports Twitter/X posts, threads, user timelines, and articles from a web 
 - Fetch user posts from `@username`, username, or profile URL.
 - Fetch Twitter/X articles from article tweet URLs.
 - Preview fetched content and media before export.
-- Export Markdown, JSON, Text, and CSV where supported.
+- Export Markdown and JSON where supported.
 - Stop long-running fetches and export partial results.
 - Resume background jobs from the `jobId` URL parameter.
 - Start exports from direct links like `xport.frixaco.com/x.com/...` and `xport.frixaco.com/twitter.com/...`.
@@ -40,12 +40,12 @@ Private Social API access stays server-side through `X_API_URL` and `X_API_KEY`.
 
 ## Exports
 
-| Source     | Formats                   | Filename                         |
-| ---------- | ------------------------- | -------------------------------- |
-| Thread     | Markdown, JSON, Text, CSV | `<username>-thread.<ext>`        |
-| User posts | Markdown, JSON, Text, CSV | `<username>-user-posts.<ext>`    |
-| Partial    | Markdown, JSON, Text, CSV | Adds `-partial` before extension |
-| Article    | Markdown                  | `<sanitized-article-title>.md`   |
+| Source     | Formats        | Filename                         |
+| ---------- | -------------- | -------------------------------- |
+| Thread     | Markdown, JSON | `<username>-thread.<ext>`        |
+| User posts | Markdown, JSON | `<username>-user-posts.<ext>`    |
+| Partial    | Markdown, JSON | Adds `-partial` before extension |
+| Article    | Markdown       | `<sanitized-article-title>.md`   |
 
 ## Local Development
 

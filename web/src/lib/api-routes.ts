@@ -101,6 +101,7 @@ export function jobStatusJson(
 ): JsonObject {
   const payload: JsonObject = {
     status: job.status,
+    stopRequested: job.stopRequested,
     pagesFetched: job.pagesFetched,
     rawFetchedTweets: job.rawFetchedTweets,
     storedTweets: job.storedTweets,

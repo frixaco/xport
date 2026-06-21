@@ -49,7 +49,6 @@ export interface ContentBlock {
   previewUrl?: string;
   width?: number;
   height?: number;
-  styledText: string;
 }
 
 interface ArticleResultState {
@@ -74,6 +73,7 @@ export type FetchJobRequestType = "thread" | "user";
 
 export interface FetchJobStatusResponse {
   status: FetchJobStatus;
+  stopRequested: boolean;
   pagesFetched: number;
   rawFetchedTweets: number;
   storedTweets: number;

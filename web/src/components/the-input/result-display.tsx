@@ -1,7 +1,7 @@
 import { ExternalLink, LoaderCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FetchJobStatusResponse, MediaItem, ResultState, TweetCardModel } from "./types";
-import { estimateCostCredits, formatCreditLabel } from "./display";
+import { estimateCostCredits, formatCount, formatCreditLabel } from "./display";
 
 function Chip({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
@@ -11,28 +11,23 @@ function Chip({ children, className }: { children: React.ReactNode; className?: 
   );
 }
 
-function pluralize(count: number, singular: string): string {
-  return `${count} ${singular}${count === 1 ? "" : "s"}`;
-}
-
-function resultSummaryLabel(result: ResultState): string {
-  if (result.kind === "article") {
-    return pluralize(result.sections.length, "section");
-  }
-  const total =
-    result.kind === "thread"
-      ? result.tweets.length + (result.mainTweet ? 1 : 0)
-      : result.tweets.length;
-  return pluralize(total, "post");
-}
-
 function usageSummaryLabel(result: ResultState): string {
-  if (!result.usage) return "charge unknown";
-  return result.usage.charged ? "charged" : "not charged";
+  const credits = formatCreditLabel(estimateCostCredits(result));
+  if (!result.usage) return `${credits} estimated`;
+  return result.usage.charged ? `${credits} charged` : `${credits} not charged`;
 }
 
-function resultKindLabel(result: ResultState): string {
-  return result.kind === "article" ? "Article" : result.kind === "thread" ? "Thread" : "User";
+function resultHeaderLabel(result: ResultState, isFetchingEmpty = false): string {
+  if (result.kind === "article") return "Article";
+  if (isFetchingEmpty) return result.kind === "thread" ? "Fetching thread" : "Fetching posts";
+  if (result.kind === "user-tweets") return `Fetched ${formatCount(result.tweets.length, "post")}`;
+
+  const replies = result.tweets.length;
+  if (result.mainTweet && replies > 0) {
+    return `Fetched the post and ${formatCount(replies, "reply")}`;
+  }
+  if (result.mainTweet) return "Fetched the post";
+  return `Fetched ${formatCount(replies, "reply")}`;
 }
 
 const jobStatusBadgeConfig: Record<string, { label: string; className: string }> = {
@@ -44,10 +39,6 @@ const jobStatusBadgeConfig: Record<string, { label: string; className: string }>
     label: "Stopped",
     className: "bg-amber-500/20 text-amber-600 dark:text-amber-400",
   },
-  complete: {
-    label: "Complete",
-    className: "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400",
-  },
   partial: {
     label: "Partial",
     className: "bg-amber-500/20 text-amber-600 dark:text-amber-400",
@@ -57,6 +48,8 @@ const jobStatusBadgeConfig: Record<string, { label: string; className: string }>
     className: "bg-destructive/20 text-destructive",
   },
 };
+
+const skeletonRows = ["first", "second", "third", "fourth"];
 
 function resolveJobBadge(
   jobStatus: FetchJobStatusResponse,
@@ -71,14 +64,19 @@ function resolveJobBadge(
   if (jobStatus.status === "stopped") {
     return hasResults ? jobStatusBadgeConfig.partial : jobStatusBadgeConfig.stopped;
   }
-  return jobStatusBadgeConfig.complete;
+  return null;
+}
+
+function resultMetaLabels(result: ResultState): string[] {
+  if (result.kind !== "article") return [];
+  return [formatCount(result.sections.length, "section"), usageSummaryLabel(result)];
 }
 
 function ListHeader({ label, count }: { label: string; count: number }) {
   return (
     <div className="flex items-center justify-between px-0.5 text-xs text-muted-foreground">
       {label}
-      <span>{pluralize(count, "post")}</span>
+      <span>{formatCount(count, "post")}</span>
     </div>
   );
 }
@@ -89,10 +87,10 @@ function MediaGallery({ media, altPrefix }: { media: MediaItem[]; altPrefix: str
 
   return (
     <div className={cn("gap-2 pt-3", asGrid ? "grid sm:grid-cols-2" : "flex flex-col")}>
-      {media.map((item, index) =>
+      {media.map((item) =>
         item.type === "image" ? (
           <a
-            key={`${item.url}-${index}`}
+            key={`${item.type}-${item.url}`}
             href={item.url}
             target="_blank"
             rel="noreferrer"
@@ -100,14 +98,14 @@ function MediaGallery({ media, altPrefix }: { media: MediaItem[]; altPrefix: str
           >
             <img
               src={item.url}
-              alt={`${altPrefix} media ${index + 1}`}
+              alt={`${altPrefix} media`}
               className={cn("w-full object-cover", asGrid ? "h-52 sm:h-44" : "max-h-96")}
               loading="lazy"
             />
           </a>
         ) : (
           <a
-            key={`${item.url}-${index}`}
+            key={`${item.type}-${item.url}`}
             href={item.url}
             target="_blank"
             rel="noreferrer"
@@ -169,7 +167,7 @@ function TweetRowCard({
       <p className="text-sm leading-relaxed whitespace-pre-wrap">{tweet.text}</p>
       {tweet.media.length > 0 && (
         <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
-          {pluralize(tweet.media.length, "media item")}
+          {formatCount(tweet.media.length, "media item")}
         </p>
       )}
       <MediaGallery media={tweet.media} altPrefix="Tweet" />
@@ -179,22 +177,25 @@ function TweetRowCard({
 
 export function ResultDisplay({
   result,
+  isFetching = false,
   jobStatus,
   onLoadMore,
   loadingMore,
 }: {
   result: ResultState;
+  isFetching?: boolean;
   jobStatus?: FetchJobStatusResponse;
   onLoadMore?: () => void;
   loadingMore?: boolean;
 }) {
-  const hasResults =
-    result.kind === "article"
-      ? result.sections.length > 0
-      : result.kind === "thread"
-        ? Boolean(result.mainTweet || result.tweets.length > 0)
-        : result.tweets.length > 0;
-  const badge = jobStatus ? resolveJobBadge(jobStatus, hasResults) : null;
+  const isArticle = result.kind === "article";
+  const hasResults = isArticle
+    ? result.sections.length > 0
+    : result.kind === "thread"
+      ? Boolean(result.mainTweet || result.tweets.length > 0)
+      : result.tweets.length > 0;
+  const badge = isArticle && jobStatus ? resolveJobBadge(jobStatus, hasResults) : null;
+  const showLoadingPlaceholder = isFetching && !hasResults && !isArticle;
 
   function handleScroll(event: React.UIEvent<HTMLDivElement>) {
     if (!onLoadMore || loadingMore) return;
@@ -205,34 +206,43 @@ export function ResultDisplay({
   }
 
   return (
-    <div className="w-full animate-in overflow-hidden rounded-lg border duration-300 fade-in slide-in-from-bottom-2 md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center">
-      <div className="flex flex-wrap items-center gap-2 border-b bg-muted/30 px-3 py-2.5">
-        <Chip className="text-[11px] text-muted-foreground">{resultKindLabel(result)}</Chip>
-        <span className="text-sm font-medium">{result.label}</span>
-        <Chip className="text-[11px] text-muted-foreground">{resultSummaryLabel(result)}</Chip>
+    <div
+      className={cn(
+        "w-full animate-in duration-300 fade-in slide-in-from-bottom-2 md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center",
+        isArticle && "overflow-hidden rounded-lg border",
+      )}
+    >
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-x-2 gap-y-1 py-2.5 text-sm",
+          isArticle && "border-b bg-muted/20 px-4",
+        )}
+      >
+        <span className="font-medium">{resultHeaderLabel(result, showLoadingPlaceholder)}</span>
+        {resultMetaLabels(result).map((label) => (
+          <span key={label} className="inline-flex items-center gap-2 text-muted-foreground">
+            <span aria-hidden="true">•</span>
+            <span className="tabular-nums">{label}</span>
+          </span>
+        ))}
         {badge && (
           <span
             className={cn(
-              "rounded-full border-0 px-2 py-0.5 text-[11px] font-medium",
+              "ml-auto rounded-full border-0 px-2 py-0.5 text-[11px] font-medium",
               badge.className,
             )}
           >
             {badge.label}
           </span>
         )}
-        <div className="ml-auto flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-          <Chip>{formatCreditLabel(estimateCostCredits(result))}</Chip>
-          <Chip>{usageSummaryLabel(result)}</Chip>
-          {typeof result.usage?.tweetCount === "number" && (
-            <Chip>billed on {pluralize(result.usage.tweetCount, "post")}</Chip>
-          )}
-        </div>
       </div>
       <div
         className="h-104 w-full overflow-auto md:h-152"
         onScroll={onLoadMore ? handleScroll : undefined}
       >
-        {result.kind === "article" ? (
+        {showLoadingPlaceholder ? (
+          <PostListSkeleton />
+        ) : result.kind === "article" ? (
           <ArticleContent result={result} />
         ) : result.kind === "thread" ? (
           <ThreadContent result={result} />
@@ -245,6 +255,33 @@ export function ResultDisplay({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function PostListSkeleton() {
+  return (
+    <div className="flex flex-col gap-2.5">
+      {skeletonRows.map((row) => (
+        <div
+          key={row}
+          className="flex animate-pulse flex-col gap-3 rounded-md border bg-background p-3"
+        >
+          <div className="flex items-center gap-2">
+            <div className="size-5 rounded-full bg-muted" />
+            <div className="h-3 w-36 rounded-sm bg-muted" />
+            <div className="ml-auto h-6 w-14 rounded-full bg-muted" />
+          </div>
+          <div className="space-y-2">
+            <div className="h-3 w-5/6 rounded-sm bg-muted" />
+            <div className="h-3 w-2/3 rounded-sm bg-muted" />
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="h-32 rounded-md bg-muted/70" />
+            <div className="hidden h-32 rounded-md bg-muted/70 sm:block" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -264,12 +301,12 @@ export function ResultDisplayLoading() {
 
 function ArticleContent({ result }: { result: ResultState & { kind: "article" } }) {
   return (
-    <article className="flex flex-col gap-4 p-4 sm:p-5">
-      <header className="flex flex-col gap-2 rounded-md border bg-muted/20 p-3">
+    <article className="flex flex-col gap-5 p-4 sm:p-5">
+      <header className="flex flex-col gap-2 border-b pb-4">
         <h2 className="text-base leading-snug font-semibold sm:text-lg">{result.title}</h2>
         {result.byline && <p className="text-xs text-muted-foreground">{result.byline}</p>}
         {result.preview && (
-          <p className="rounded-md border bg-background px-3 py-2 text-sm leading-relaxed text-muted-foreground">
+          <p className="text-sm leading-relaxed text-pretty text-muted-foreground">
             {result.preview}
           </p>
         )}
@@ -278,17 +315,16 @@ function ArticleContent({ result }: { result: ResultState & { kind: "article" } 
         <MediaGallery media={[{ type: "image", url: result.coverImageUrl }]} altPrefix="Article" />
       )}
       {result.sections.length > 0 ? (
-        <div className="prose prose-sm dark:prose-invert max-w-none rounded-md border bg-background p-4 sm:px-5">
-          {result.sections.map((block, index) => {
-            const displayText = block.styledText || block.text;
-            if (!displayText && block.type !== "divider") return null;
+        <div className="max-w-none">
+          {result.sections.map((block) => {
+            if (!block.text && block.type !== "divider") return null;
 
             if (block.type === "image" || block.type === "gif") {
               const url = block.previewUrl || block.url;
               if (!url) return null;
               return (
                 <MediaGallery
-                  key={`article-media-${index}`}
+                  key={`article-media-${url}`}
                   media={[{ type: "image", url }]}
                   altPrefix="Article"
                 />
@@ -297,7 +333,7 @@ function ArticleContent({ result }: { result: ResultState & { kind: "article" } 
 
             return (
               <p
-                key={`article-block-${index}`}
+                key={`${block.type}-${block.url ?? ""}-${block.text}`}
                 className={cn(
                   "text-sm leading-relaxed whitespace-pre-wrap",
                   block.type === "blockquote" && "border-l-2 pl-4 italic",
@@ -306,7 +342,7 @@ function ArticleContent({ result }: { result: ResultState & { kind: "article" } 
                   block.type === "header-three" && "text-sm font-semibold",
                 )}
                 dangerouslySetInnerHTML={{
-                  __html: renderBlockHtml(displayText, block.type),
+                  __html: renderBlockHtml(block.text, block.type),
                 }}
               />
             );
@@ -348,7 +384,7 @@ function escapeHtml(text: string): string {
 function ThreadContent({ result }: { result: ResultState & { kind: "thread" } }) {
   const replyStartIndex = result.mainTweet ? 2 : 1;
   return (
-    <div className="flex flex-col gap-4 p-3">
+    <div className="flex flex-col gap-4">
       {result.mainTweet && <TweetRowCard tweet={result.mainTweet} main tag="Main post" index={1} />}
       {result.tweets.length > 0 ? (
         <div className="flex flex-col gap-2.5">
@@ -368,8 +404,7 @@ function UserTweetsContent({ result }: { result: ResultState & { kind: "user-twe
   if (result.tweets.length === 0) return <EmptyPlaceholder />;
 
   return (
-    <div className="flex flex-col gap-2.5 p-3">
-      <ListHeader label="Latest posts" count={result.tweets.length} />
+    <div className="flex flex-col gap-2.5">
       {result.tweets.map((tweet, index) => (
         <TweetRowCard key={tweet.id} tweet={tweet} index={index + 1} />
       ))}
