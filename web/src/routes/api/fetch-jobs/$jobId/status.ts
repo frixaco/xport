@@ -12,25 +12,25 @@ export const Route = createFileRoute("/api/fetch-jobs/$jobId/status")({
         }
 
         const job = await getJobStatus(params.jobId);
-        if (!job || job.owner_user_id !== session.user.id) {
+        if (!job || job.ownerUserId !== session.user.id) {
           return Response.json({ error: "Job not found." }, { status: 404 });
         }
 
         return Response.json({
-          requestType: job.request_type,
-          inputRaw: job.input_raw,
-          inputNormalized: job.input_normalized,
+          requestType: job.requestType,
+          inputRaw: job.inputRaw,
+          inputNormalized: job.inputNormalized,
           status: job.status,
-          pagesFetched: job.pages_fetched,
-          rawFetchedTweets: job.raw_fetched_tweets,
-          storedTweets: job.stored_tweets,
-          chargedCredits: job.charged_credits,
-          hasNextPage: job.has_next_page,
+          pagesFetched: job.pagesFetched,
+          rawFetchedTweets: job.rawFetchedTweets,
+          storedTweets: job.storedTweets,
+          chargedCredits: job.chargedCredits,
+          hasNextPage: job.hasNextPage,
           error:
-            job.error_code || job.error_message
-              ? { code: job.error_code, message: job.error_message }
+            job.errorCode || job.errorMessage
+              ? { code: job.errorCode, message: job.errorMessage }
               : null,
-          updatedAt: job.updated_at,
+          updatedAt: job.updatedAt,
         });
       },
     },

@@ -12,7 +12,7 @@ export const Route = createFileRoute("/api/fetch-jobs/$jobId/tweets")({
         }
 
         const job = await getJobStatus(params.jobId);
-        if (!job || job.owner_user_id !== session.user.id) {
+        if (!job || job.ownerUserId !== session.user.id) {
           return Response.json({ error: "Job not found." }, { status: 404 });
         }
 
@@ -25,7 +25,7 @@ export const Route = createFileRoute("/api/fetch-jobs/$jobId/tweets")({
 
         const result = await getJobTweets(params.jobId, offset, limit);
 
-        if (job.request_type === "thread") {
+        if (job.requestType === "thread") {
           return Response.json({
             mainTweet: result.mainTweet,
             tweets: result.tweets,

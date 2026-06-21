@@ -40,32 +40,32 @@ export const Route = createFileRoute("/some-route")({
 ## Commands
 
 ```bash
-pnpm run dev
-pnpm run build
-pnpm run check
-pnpm run lint
-pnpm run format
-pnpm run db:migrate
-pnpm run db:generate
+pn run dev
+pn run build
+pn run check
+pn run lint
+pn run format
+pn run db:generate
+pn run db:migrate
 ```
 
 CLI commands from repo root:
 
 ```bash
-pnpm --filter cli fetch-thread -- <tweet-url-or-id>
-pnpm --filter cli fetch-article -- <tweet-url-or-id>
-pnpm --filter cli fetch-posts-by-username -- <username>
-pnpm --filter cli fetch-user-info -- <username>
-pnpm --filter cli fetch-bookmarks
-pnpm --filter cli exec tsx json-to-text.ts <input.json>
+pn --filter cli fetch-thread -- <tweet-url-or-id>
+pn --filter cli fetch-article -- <tweet-url-or-id>
+pn --filter cli fetch-posts-by-username -- <username>
+pn --filter cli fetch-user-info -- <username>
+pn --filter cli fetch-bookmarks
+pn --filter cli exec tsx json-to-text.ts <input.json>
 ```
 
 ## Deployment
 
 - Hosting: Railway.
 - Domain: `xport.frixaco.com`.
-- Database: Railway PostgreSQL service `xport-db`.
-- Runtime: Bun 1.3.x, pnpm 10.x.
+- Database: PostgreSQL.
+- Runtime: Node.js, pnpm 11.x.
 - Build/start are defined in `railway.json`.
 - Production env vars are managed in Railway, not committed files.
 - `BETTER_AUTH_URL` must match `https://xport.frixaco.com`.
@@ -79,8 +79,15 @@ railway up --detach
 railway service status
 railway logs
 railway run -- <cmd>
-railway connect xport-db
+railway connect Postgres
 ```
+
+Database schema is managed with Drizzle:
+
+- Edit schema in `web/src/db/schema.ts`.
+- Generate migrations with `pn run db:generate`.
+- Apply migrations with `pn run db:migrate`.
+- Keep generated migration files in `web/drizzle/`.
 
 After deploy, wait for `railway service status` to show `SUCCESS` before testing.
 
@@ -89,8 +96,8 @@ After deploy, wait for `railway service status` to show `SUCCESS` before testing
 Before deploy:
 
 ```bash
-pnpm run check
-pnpm run lint
+pn run check
+pn run lint
 ```
 
 Regression inputs:

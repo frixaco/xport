@@ -52,27 +52,27 @@ Private Social API access stays server-side through `X_API_URL` and `X_API_KEY`.
 Requirements:
 
 - Node.js 24.x
-- pnpm 10.x
+- pnpm 11.x
 - PostgreSQL
 - GitHub/Google OAuth credentials
 - Polar credentials
 - Social API credentials
 
 ```bash
-pnpm install
-pnpm run db:migrate
-pnpm run dev
+pn install
+pn run db:migrate
+pn run dev
 ```
 
 Useful commands:
 
 ```bash
-pnpm run build
-pnpm run check
-pnpm run lint
-pnpm run format
-pnpm run db:migrate
-pnpm run db:generate
+pn run build
+pn run check
+pn run lint
+pn run format
+pn run db:generate
+pn run db:migrate
 ```
 
 ## Environment
@@ -97,8 +97,11 @@ Polar:
 
 - `POLAR_ENV`
 - `POLAR_ACCESS_TOKEN` or `SANDBOX_POLAR_ACCESS_TOKEN`
+- `POLAR_WEBHOOK_SECRET`
 - `POLAR_CREDITS_50_CREDITS_PRODUCT_ID` or `SANDBOX_POLAR_CREDITS_50_CREDITS_PRODUCT_ID`
 - `POLAR_CREDITS_500_CREDITS_PRODUCT_ID` or `SANDBOX_POLAR_CREDITS_500_CREDITS_PRODUCT_ID`
+
+Signup credits are granted from the Polar `customer.created` webhook. New customers receive 50 credits when the Polar webhook endpoint named `Xport Signup Credits` is enabled. Disabling that endpoint is the only operational toggle.
 
 Analytics:
 
@@ -111,8 +114,8 @@ Production: `https://xport.frixaco.com`
 
 Railway uses `railway.json`:
 
-- Build: `pnpm build`
-- Start: `pnpm start`
+- Build: `pn build`
+- Start: `pn start`
 - Healthcheck: `/`
 
 ```bash
@@ -122,19 +125,24 @@ railway service status
 railway logs
 ```
 
-Custom SQL migrations live in `web/migrations/`.
+Database schema is managed with Drizzle:
+
+- Schema: `web/src/db/schema.ts`
+- Migrations: `web/drizzle/`
+- Generate after schema changes: `pn run db:generate`
+- Apply migrations: `pn run db:migrate`
 
 ## CLI
 
 CLI scripts read `cli/.env`; see `cli/.env.example`.
 
 ```bash
-pnpm --filter cli fetch-thread -- <tweet-url-or-id>
-pnpm --filter cli fetch-article -- <tweet-url-or-id>
-pnpm --filter cli fetch-posts-by-username -- <username>
-pnpm --filter cli fetch-user-info -- <username>
-pnpm --filter cli fetch-bookmarks
-pnpm --filter cli exec tsx json-to-text.ts <input.json>
+pn --filter cli fetch-thread -- <tweet-url-or-id>
+pn --filter cli fetch-article -- <tweet-url-or-id>
+pn --filter cli fetch-posts-by-username -- <username>
+pn --filter cli fetch-user-info -- <username>
+pn --filter cli fetch-bookmarks
+pn --filter cli exec tsx json-to-text.ts <input.json>
 ```
 
 ## License

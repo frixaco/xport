@@ -1,12 +1,38 @@
 import { betterAuth } from "better-auth";
-import { polar, checkout, portal, usage } from "@polar-sh/better-auth";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { polar, checkout, portal, usage, webhooks } from "@polar-sh/better-auth";
+import type { WebhookCustomerCreatedPayload } from "@polar-sh/sdk/models/components/webhookcustomercreatedpayload";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
-import { Pool } from "pg";
+import * as schema from "@/db/schema";
+import { db } from "@/lib/db";
 import { polarClient } from "./polar";
 
+const USAGE_EVENT_NAME = "usage";
+const SIGNUP_CREDIT_AMOUNT = 50;
+
+async function grantSignupCredits(payload: WebhookCustomerCreatedPayload): Promise<void> {
+  const polarCustomerId = payload.data.id;
+  const externalId = `signup-credit:v1:${polarCustomerId}`;
+
+  await polarClient.events.ingest({
+    events: [
+      {
+        name: USAGE_EVENT_NAME,
+        customerId: polarCustomerId,
+        externalId,
+        metadata: {
+          credits: -SIGNUP_CREDIT_AMOUNT,
+          reason: "signup-credit",
+        },
+      },
+    ],
+  });
+}
+
 export const auth = betterAuth({
-  database: new Pool({
-    connectionString: process.env.DATABASE_URL!,
+  database: drizzleAdapter(db, {
+    provider: "pg",
+    schema,
   }),
   emailAndPassword: {
     enabled: false,
@@ -51,6 +77,10 @@ export const auth = betterAuth({
         }),
         portal(),
         usage(),
+        webhooks({
+          secret: process.env.POLAR_WEBHOOK_SECRET!,
+          onCustomerCreated: grantSignupCredits,
+        }),
       ],
     }),
     tanstackStartCookies(),

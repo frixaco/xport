@@ -1,33 +1,14 @@
-import { query } from "@/lib/db";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { fetchJobs, fetchTweets } from "@/db/schema";
+import { db } from "@/lib/db";
 import { fetchThreadContext, fetchUserLastTweets, XApiError, type XPost } from "@/lib/x-api";
 import { ingestCreditsUsage } from "@/lib/api-access";
 
 export type FetchJobStatus = "queued" | "running" | "completed" | "stopped" | "failed";
 export type FetchJobRequestType = "thread" | "user";
-const ACTIVE_FETCH_JOB_STATUSES = ["queued", "running"] as const;
+const ACTIVE_FETCH_JOB_STATUSES: FetchJobStatus[] = ["queued", "running"];
 
-export interface FetchJobRow {
-  id: string;
-  owner_user_id: string;
-  request_type: FetchJobRequestType;
-  input_raw: string;
-  input_normalized: string;
-  status: FetchJobStatus;
-  stop_requested: boolean;
-  started_at: string | null;
-  finished_at: string | null;
-  expires_at: string | null;
-  pages_fetched: number;
-  raw_fetched_tweets: number;
-  stored_tweets: number;
-  charged_credits: number;
-  next_cursor: string | null;
-  has_next_page: boolean;
-  error_code: string | null;
-  error_message: string | null;
-  created_at: string;
-  updated_at: string;
-}
+export type FetchJobRow = typeof fetchJobs.$inferSelect;
 
 interface CreateFetchJobParams {
   ownerUserId: string;
@@ -37,27 +18,25 @@ interface CreateFetchJobParams {
 }
 
 export async function createFetchJob(params: CreateFetchJobParams): Promise<string> {
-  const id = crypto.randomUUID();
-  await query(
-    `INSERT INTO xport_fetch_jobs (
-      id, owner_user_id, request_type, input_raw, input_normalized,
-      status, stop_requested, started_at, expires_at,
-      pages_fetched, raw_fetched_tweets, stored_tweets, charged_credits,
-      next_cursor, has_next_page
-    ) VALUES (
-      $1, $2, $3, $4, $5,
-      'running', false, now(), now() + interval '1 hour',
-      0, 0, 0, 0,
-      null, true
-    )`,
-    [id, params.ownerUserId, params.requestType, params.inputRaw, params.inputNormalized],
-  );
-  return id;
+  const [job] = await db
+    .insert(fetchJobs)
+    .values({
+      ownerUserId: params.ownerUserId,
+      requestType: params.requestType,
+      inputRaw: params.inputRaw,
+      inputNormalized: params.inputNormalized,
+      status: "running",
+      startedAt: new Date(),
+      expiresAt: sql`now() + interval '1 hour'`,
+    })
+    .returning({ id: fetchJobs.id });
+
+  return job.id;
 }
 
 export async function getJobStatus(jobId: string): Promise<FetchJobRow | null> {
-  const result = await query<FetchJobRow>(`SELECT * FROM xport_fetch_jobs WHERE id = $1`, [jobId]);
-  return result.rows[0] ?? null;
+  const [job] = await db.select().from(fetchJobs).where(eq(fetchJobs.id, jobId)).limit(1);
+  return job ?? null;
 }
 
 interface JobTweetsResult {
@@ -71,43 +50,41 @@ export async function getJobTweets(
   offset: number,
   limit: number,
 ): Promise<JobTweetsResult> {
-  const [tweetsResult, countResult, mainResult] = await Promise.all([
-    query<{ tweet_json: XPost }>(
-      `SELECT tweet_json FROM xport_fetch_tweets
-       WHERE job_id = $1
-       ORDER BY seq DESC
-       LIMIT $2 OFFSET $3`,
-      [jobId, limit, offset],
-    ),
-    query<{ count: string }>(
-      `SELECT count(*)::text AS count FROM xport_fetch_tweets WHERE job_id = $1`,
-      [jobId],
-    ),
-    query<{ tweet_json: XPost }>(
-      `SELECT tweet_json FROM xport_fetch_tweets
-       WHERE job_id = $1 AND is_main = true
-       LIMIT 1`,
-      [jobId],
-    ),
+  const [tweetRows, countRows, mainRows] = await Promise.all([
+    db
+      .select({ tweetJson: fetchTweets.tweetJson })
+      .from(fetchTweets)
+      .where(eq(fetchTweets.jobId, jobId))
+      .orderBy(desc(fetchTweets.seq))
+      .limit(limit)
+      .offset(offset),
+    db.select({ value: count() }).from(fetchTweets).where(eq(fetchTweets.jobId, jobId)),
+    db
+      .select({ tweetJson: fetchTweets.tweetJson })
+      .from(fetchTweets)
+      .where(and(eq(fetchTweets.jobId, jobId), eq(fetchTweets.isMain, true)))
+      .limit(1),
   ]);
 
   return {
-    tweets: tweetsResult.rows.map((r) => r.tweet_json),
-    mainTweet: mainResult.rows[0]?.tweet_json ?? null,
-    total: parseInt(countResult.rows[0]?.count ?? "0", 10),
+    tweets: tweetRows.map((row) => row.tweetJson),
+    mainTweet: mainRows[0]?.tweetJson ?? null,
+    total: countRows[0]?.value ?? 0,
   };
 }
 
 export async function requestJobStop(jobId: string): Promise<FetchJobRow | null> {
-  const result = await query<FetchJobRow>(
-    `UPDATE xport_fetch_jobs
-     SET stop_requested = true, updated_at = now()
-     WHERE id = $1 AND status = ANY($2::text[])
-     RETURNING *`,
-    [jobId, ACTIVE_FETCH_JOB_STATUSES],
-  );
-  if (result.rows[0]) {
-    return result.rows[0];
+  const [job] = await db
+    .update(fetchJobs)
+    .set({
+      stopRequested: true,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(fetchJobs.id, jobId), inArray(fetchJobs.status, ACTIVE_FETCH_JOB_STATUSES)))
+    .returning();
+
+  if (job) {
+    return job;
   }
 
   return getJobStatus(jobId);
@@ -122,37 +99,33 @@ async function updateJobProgress(
     hasNextPage: boolean;
   },
 ): Promise<void> {
-  const storedResult = await query<{ count: string }>(
-    `SELECT count(*)::text AS count FROM xport_fetch_tweets WHERE job_id = $1`,
-    [jobId],
-  );
-  const storedTweets = parseInt(storedResult.rows[0]?.count ?? "0", 10);
+  const [storedResult] = await db
+    .select({ value: count() })
+    .from(fetchTweets)
+    .where(eq(fetchTweets.jobId, jobId));
+  const storedTweets = storedResult?.value ?? 0;
 
-  await query(
-    `UPDATE xport_fetch_jobs SET
-      pages_fetched = $2,
-      raw_fetched_tweets = $3,
-      stored_tweets = $4,
-      next_cursor = $5,
-      has_next_page = $6,
-      updated_at = now()
-    WHERE id = $1`,
-    [
-      jobId,
-      updates.pagesFetched,
-      updates.rawFetchedTweets,
+  await db
+    .update(fetchJobs)
+    .set({
+      pagesFetched: updates.pagesFetched,
+      rawFetchedTweets: updates.rawFetchedTweets,
       storedTweets,
-      updates.nextCursor,
-      updates.hasNextPage,
-    ],
-  );
+      nextCursor: updates.nextCursor,
+      hasNextPage: updates.hasNextPage,
+      updatedAt: new Date(),
+    })
+    .where(eq(fetchJobs.id, jobId));
 }
 
 async function updateJobChargedCredits(jobId: string, chargedCredits: number): Promise<void> {
-  await query(
-    `UPDATE xport_fetch_jobs SET charged_credits = $2, updated_at = now() WHERE id = $1`,
-    [jobId, chargedCredits],
-  );
+  await db
+    .update(fetchJobs)
+    .set({
+      chargedCredits,
+      updatedAt: new Date(),
+    })
+    .where(eq(fetchJobs.id, jobId));
 }
 
 async function finishJob(
@@ -160,20 +133,19 @@ async function finishJob(
   status: "completed" | "stopped" | "failed",
   error?: { code: string; message: string },
 ): Promise<void> {
-  await query(
-    `UPDATE xport_fetch_jobs SET
-      status = CASE
-        WHEN $2 = 'completed' AND stop_requested THEN 'stopped'
-        ELSE $2
-      END,
-      finished_at = now(),
-      error_code = $3,
-      error_message = $4,
-      updated_at = now()
-    WHERE id = $1
-      AND status = ANY($5::text[])`,
-    [jobId, status, error?.code ?? null, error?.message ?? null, ACTIVE_FETCH_JOB_STATUSES],
-  );
+  await db
+    .update(fetchJobs)
+    .set({
+      status: sql<FetchJobStatus>`CASE
+        WHEN ${status} = 'completed' AND ${fetchJobs.stopRequested} THEN 'stopped'
+        ELSE ${status}
+      END`,
+      finishedAt: new Date(),
+      errorCode: error?.code ?? null,
+      errorMessage: error?.message ?? null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(fetchJobs.id, jobId), inArray(fetchJobs.status, ACTIVE_FETCH_JOB_STATUSES)));
 }
 
 async function insertTweets(
@@ -184,30 +156,37 @@ async function insertTweets(
 ): Promise<void> {
   if (tweets.length === 0) return;
 
-  const seqResult = await query<{ max_seq: string | null }>(
-    `SELECT max(seq)::text AS max_seq FROM xport_fetch_tweets WHERE job_id = $1`,
-    [jobId],
-  );
-  let seq = parseInt(seqResult.rows[0]?.max_seq ?? "0", 10);
+  const [seqResult] = await db
+    .select({ maxSeq: sql<number | null>`max(${fetchTweets.seq})` })
+    .from(fetchTweets)
+    .where(eq(fetchTweets.jobId, jobId));
+  let seq = seqResult?.maxSeq ?? 0;
 
-  for (const tweet of tweets) {
-    seq++;
-    const isMain = page === 1 && mainTweetId !== null && tweet.id === mainTweetId;
-    await query(
-      `INSERT INTO xport_fetch_tweets (job_id, tweet_id, seq, page, tweet_json, is_main)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (job_id, tweet_id) DO NOTHING`,
-      [jobId, tweet.id, seq, page, JSON.stringify(tweet), isMain],
-    );
-  }
+  await db
+    .insert(fetchTweets)
+    .values(
+      tweets.map((tweet) => {
+        seq++;
+        return {
+          jobId,
+          tweetId: tweet.id,
+          seq,
+          page,
+          tweetJson: tweet,
+          isMain: page === 1 && mainTweetId !== null && tweet.id === mainTweetId,
+        };
+      }),
+    )
+    .onConflictDoNothing({ target: [fetchTweets.jobId, fetchTweets.tweetId] });
 }
 
 async function isStopRequested(jobId: string): Promise<boolean> {
-  const result = await query<{ stop_requested: boolean }>(
-    `SELECT stop_requested FROM xport_fetch_jobs WHERE id = $1`,
-    [jobId],
-  );
-  return result.rows[0]?.stop_requested ?? false;
+  const [job] = await db
+    .select({ stopRequested: fetchJobs.stopRequested })
+    .from(fetchJobs)
+    .where(eq(fetchJobs.id, jobId))
+    .limit(1);
+  return job?.stopRequested ?? false;
 }
 
 function isRetryable(error: unknown): boolean {
