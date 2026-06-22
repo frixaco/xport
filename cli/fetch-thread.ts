@@ -233,7 +233,7 @@ async function fetchFullThread(tweetId: string): Promise<ThreadTweet[]> {
 // ============ Processing Functions ============
 
 function sortChronologically(tweets: ThreadTweet[]): ThreadTweet[] {
-  return [...tweets].sort(
+  return tweets.toSorted(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
 }
@@ -274,7 +274,7 @@ function extractMedia(tweet: ThreadTweet): ProcessedTweet["media"] {
     ) {
       const best = item.video_info.variants
         .filter((v) => v.bitrate !== undefined)
-        .sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0))[0];
+        .toSorted((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0))[0];
       if (best) media.push({ type: "video", url: best.url });
     }
   }
@@ -326,6 +326,34 @@ function getExtension(url: string, type: "image" | "video"): string {
   return type === "image" ? ".jpg" : ".mp4";
 }
 
+async function downloadWithYtDlp(url: string, outputPath: string): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const proc = spawn("yt-dlp", ["-q", "-o", outputPath, url], { stdio: "ignore" });
+    let settled = false;
+
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      proc.removeListener("close", onClose);
+      proc.removeListener("error", onError);
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    };
+    const onClose = (code: number | null) => {
+      finish(code === 0 ? undefined : new Error(`yt-dlp exited with ${code}`));
+    };
+    const onError = (error: Error) => {
+      finish(error);
+    };
+
+    proc.once("close", onClose);
+    proc.once("error", onError);
+  });
+}
+
 async function downloadMedia(
   url: string,
   outputPath: string,
@@ -341,13 +369,7 @@ async function downloadMedia(
   } catch (error) {
     if (type === "video") {
       console.log(`  Retrying with yt-dlp...`);
-      await new Promise<void>((resolve, reject) => {
-        const proc = spawn("yt-dlp", ["-q", "-o", outputPath, url], { stdio: "ignore" });
-        proc.on("close", (code) =>
-          code === 0 ? resolve() : reject(new Error(`yt-dlp exited with ${code}`)),
-        );
-        proc.on("error", reject);
-      });
+      await downloadWithYtDlp(url, outputPath);
     } else {
       throw error;
     }

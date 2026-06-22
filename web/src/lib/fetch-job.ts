@@ -1,4 +1,5 @@
-import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, asc, count, eq, inArray, sql } from "drizzle-orm";
 import { fetchJobs, fetchTweets } from "@/db/schema";
 import { db } from "@/lib/db";
 import { fetchThreadContext, fetchUserLastTweets, XApiError, type XPost } from "@/lib/x-api";
@@ -9,6 +10,16 @@ export type FetchJobRequestType = "thread" | "user";
 const ACTIVE_FETCH_JOB_STATUSES: FetchJobStatus[] = ["queued", "running"];
 
 export type FetchJobRow = typeof fetchJobs.$inferSelect;
+
+function isQueuedOrStaleRunningJobSql(): ReturnType<typeof sql> {
+  return sql`(
+    ${fetchJobs.status} = 'queued'
+    OR (
+      ${fetchJobs.status} = 'running'
+      AND ${fetchJobs.updatedAt} < now() - interval '5 minutes'
+    )
+  )`;
+}
 
 interface CreateFetchJobParams {
   ownerUserId: string;
@@ -25,8 +36,6 @@ export async function createFetchJob(params: CreateFetchJobParams): Promise<stri
       requestType: params.requestType,
       inputRaw: params.inputRaw,
       inputNormalized: params.inputNormalized,
-      status: "running",
-      startedAt: new Date(),
       expiresAt: sql`now() + interval '1 hour'`,
     })
     .returning({ id: fetchJobs.id });
@@ -55,7 +64,7 @@ export async function getJobTweets(
       .select({ tweetJson: fetchTweets.tweetJson })
       .from(fetchTweets)
       .where(eq(fetchTweets.jobId, jobId))
-      .orderBy(desc(fetchTweets.seq))
+      .orderBy(asc(fetchTweets.seq))
       .limit(limit)
       .offset(offset),
     db.select({ value: count() }).from(fetchTweets).where(eq(fetchTweets.jobId, jobId)),
@@ -78,6 +87,21 @@ export async function requestJobStop(jobId: string): Promise<FetchJobRow | null>
     .update(fetchJobs)
     .set({
       stopRequested: true,
+      status: sql<FetchJobStatus>`CASE
+        WHEN ${isQueuedOrStaleRunningJobSql()}
+        THEN 'stopped'
+        ELSE ${fetchJobs.status}
+      END`,
+      runnerId: sql<string | null>`CASE
+        WHEN ${isQueuedOrStaleRunningJobSql()}
+        THEN null
+        ELSE ${fetchJobs.runnerId}
+      END`,
+      finishedAt: sql<Date | null>`CASE
+        WHEN ${isQueuedOrStaleRunningJobSql()}
+        THEN now()
+        ELSE ${fetchJobs.finishedAt}
+      END`,
       updatedAt: new Date(),
     })
     .where(and(eq(fetchJobs.id, jobId), inArray(fetchJobs.status, ACTIVE_FETCH_JOB_STATUSES)))
@@ -92,20 +116,21 @@ export async function requestJobStop(jobId: string): Promise<FetchJobRow | null>
 
 async function updateJobProgress(
   jobId: string,
+  runnerId: string,
   updates: {
     pagesFetched: number;
     rawFetchedTweets: number;
     nextCursor: string | null;
     hasNextPage: boolean;
   },
-): Promise<void> {
+): Promise<{ storedTweets: number; updated: boolean }> {
   const [storedResult] = await db
     .select({ value: count() })
     .from(fetchTweets)
     .where(eq(fetchTweets.jobId, jobId));
   const storedTweets = storedResult?.value ?? 0;
 
-  await db
+  const [job] = await db
     .update(fetchJobs)
     .set({
       pagesFetched: updates.pagesFetched,
@@ -115,25 +140,36 @@ async function updateJobProgress(
       hasNextPage: updates.hasNextPage,
       updatedAt: new Date(),
     })
-    .where(eq(fetchJobs.id, jobId));
+    .where(and(eq(fetchJobs.id, jobId), eq(fetchJobs.runnerId, runnerId)))
+    .returning({ id: fetchJobs.id });
+
+  return { storedTweets, updated: Boolean(job) };
 }
 
-async function updateJobChargedCredits(jobId: string, chargedCredits: number): Promise<void> {
-  await db
+async function updateJobChargedCredits(
+  jobId: string,
+  runnerId: string,
+  chargedCredits: number,
+): Promise<boolean> {
+  const [job] = await db
     .update(fetchJobs)
     .set({
       chargedCredits,
       updatedAt: new Date(),
     })
-    .where(eq(fetchJobs.id, jobId));
+    .where(and(eq(fetchJobs.id, jobId), eq(fetchJobs.runnerId, runnerId)))
+    .returning({ id: fetchJobs.id });
+
+  return Boolean(job);
 }
 
 async function finishJob(
   jobId: string,
+  runnerId: string,
   status: "completed" | "stopped" | "failed",
   error?: { code: string; message: string },
-): Promise<void> {
-  await db
+): Promise<boolean> {
+  const [job] = await db
     .update(fetchJobs)
     .set({
       status: sql<FetchJobStatus>`CASE
@@ -143,9 +179,56 @@ async function finishJob(
       finishedAt: new Date(),
       errorCode: error?.code ?? null,
       errorMessage: error?.message ?? null,
+      runnerId: null,
       updatedAt: new Date(),
     })
-    .where(and(eq(fetchJobs.id, jobId), inArray(fetchJobs.status, ACTIVE_FETCH_JOB_STATUSES)));
+    .where(
+      and(
+        eq(fetchJobs.id, jobId),
+        eq(fetchJobs.runnerId, runnerId),
+        inArray(fetchJobs.status, ACTIVE_FETCH_JOB_STATUSES),
+      ),
+    )
+    .returning({ id: fetchJobs.id });
+
+  return Boolean(job);
+}
+
+async function claimFetchJob(jobId: string, runnerId: string): Promise<FetchJobRow | null> {
+  const [job] = await db
+    .update(fetchJobs)
+    .set({
+      status: "running",
+      runnerId,
+      startedAt: sql`coalesce(${fetchJobs.startedAt}, now())`,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(fetchJobs.id, jobId),
+        eq(fetchJobs.stopRequested, false),
+        isQueuedOrStaleRunningJobSql(),
+      ),
+    )
+    .returning();
+
+  return job ?? null;
+}
+
+async function touchActiveJob(jobId: string, runnerId: string): Promise<boolean> {
+  const [job] = await db
+    .update(fetchJobs)
+    .set({ updatedAt: new Date() })
+    .where(
+      and(
+        eq(fetchJobs.id, jobId),
+        eq(fetchJobs.runnerId, runnerId),
+        inArray(fetchJobs.status, ACTIVE_FETCH_JOB_STATUSES),
+      ),
+    )
+    .returning({ id: fetchJobs.id });
+
+  return Boolean(job);
 }
 
 async function insertTweets(
@@ -211,35 +294,36 @@ async function fetchWithRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> 
   throw lastError;
 }
 
-export async function runFetchLoop(
-  jobId: string,
-  requestType: FetchJobRequestType,
-  inputNormalized: string,
-  authHeaders: Headers,
-): Promise<void> {
-  let cursor: string | undefined;
-  let pagesFetched = 0;
-  let rawFetchedTweets = 0;
-  let chargedCredits = 0;
+async function runFetchLoop(jobId: string, authHeaders: Headers): Promise<void> {
+  const runnerId = randomUUID();
+  const job = await claimFetchJob(jobId, runnerId);
+  if (!job) return;
+
+  let cursor = job.nextCursor ?? undefined;
+  let pagesFetched = job.pagesFetched;
+  let rawFetchedTweets = job.rawFetchedTweets;
+  let chargedCredits = job.chargedCredits;
   const seenCursors = new Set<string>();
-  const isThread = requestType === "thread";
+  const isThread = job.requestType === "thread";
 
   try {
     while (true) {
       if (await isStopRequested(jobId)) {
-        await finishJob(jobId, "stopped");
+        await finishJob(jobId, runnerId, "stopped");
         return;
       }
+      if (!(await touchActiveJob(jobId, runnerId))) return;
 
       if (cursor) {
         if (seenCursors.has(cursor)) {
-          await updateJobProgress(jobId, {
+          const progress = await updateJobProgress(jobId, runnerId, {
             pagesFetched,
             rawFetchedTweets,
             nextCursor: null,
             hasNextPage: false,
           });
-          await finishJob(jobId, "completed");
+          if (!progress.updated) return;
+          await finishJob(jobId, runnerId, "completed");
           return;
         }
         seenCursors.add(cursor);
@@ -250,43 +334,58 @@ export async function runFetchLoop(
       let nextCursor: string | undefined;
 
       if (isThread) {
-        const response = await fetchWithRetry(() => fetchThreadContext(inputNormalized, cursor));
+        const response = await fetchWithRetry(() =>
+          fetchThreadContext(job.inputNormalized, cursor),
+        );
         tweets = response.tweets ?? [];
         hasNextPage = response.has_next_page;
         nextCursor = response.next_cursor;
       } else {
         // TODO: support includeReplies toggle
-        const response = await fetchWithRetry(() => fetchUserLastTweets(inputNormalized, cursor));
+        const response = await fetchWithRetry(() =>
+          fetchUserLastTweets(job.inputNormalized, cursor),
+        );
         tweets = response.data?.tweets ?? [];
         hasNextPage = response.has_next_page;
         nextCursor = response.next_cursor;
       }
 
+      if (!(await touchActiveJob(jobId, runnerId))) return;
+
+      if (await isStopRequested(jobId)) {
+        await finishJob(jobId, runnerId, "stopped");
+        return;
+      }
+
       pagesFetched++;
       rawFetchedTweets += tweets.length;
 
-      await insertTweets(jobId, tweets, pagesFetched, isThread ? inputNormalized : null);
+      await insertTweets(jobId, tweets, pagesFetched, isThread ? job.inputNormalized : null);
 
-      await updateJobProgress(jobId, {
+      const progress = await updateJobProgress(jobId, runnerId, {
         pagesFetched,
         rawFetchedTweets,
         nextCursor: nextCursor ?? null,
         hasNextPage,
       });
+      if (!progress.updated) return;
 
-      const requiredCredits = Math.max(1, Math.ceil(rawFetchedTweets / 20));
+      const requiredCredits = Math.max(1, Math.ceil(progress.storedTweets / 20));
       const delta = requiredCredits - chargedCredits;
       if (delta > 0) {
         const billingRequest = new Request("http://localhost", {
           headers: authHeaders,
         });
-        await ingestCreditsUsage(billingRequest, { credits: delta });
-        chargedCredits = requiredCredits;
-        await updateJobChargedCredits(jobId, chargedCredits);
+        const charged = await ingestCreditsUsage(billingRequest, { credits: delta });
+        if (!charged) {
+          throw new Error("Could not charge credits for this export.");
+        }
+        chargedCredits += delta;
+        if (!(await updateJobChargedCredits(jobId, runnerId, chargedCredits))) return;
       }
 
       if (!hasNextPage || !nextCursor || tweets.length === 0) {
-        await finishJob(jobId, "completed");
+        await finishJob(jobId, runnerId, "completed");
         return;
       }
 
@@ -294,9 +393,19 @@ export async function runFetchLoop(
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    await finishJob(jobId, "failed", {
-      code: "UPSTREAM_ERROR",
+    await finishJob(jobId, runnerId, "failed", {
+      code: error instanceof XApiError ? "UPSTREAM_ERROR" : "FETCH_JOB_ERROR",
       message,
     });
   }
+}
+
+export function startFetchJobInBackground(jobId: string, requestHeaders: Headers): void {
+  const authHeaders = new Headers();
+  const cookie = requestHeaders.get("cookie");
+  if (cookie) authHeaders.set("cookie", cookie);
+  const authorization = requestHeaders.get("authorization");
+  if (authorization) authHeaders.set("authorization", authorization);
+
+  runFetchLoop(jobId, authHeaders).catch(console.error);
 }

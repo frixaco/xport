@@ -1,41 +1,44 @@
 # Xport
 
-Xport exports Twitter/X posts, threads, user timelines, and articles from a web app, with CLI scripts for local data extraction.
+Xport exports Twitter/X posts, threads, user timelines, and articles from a web app. It also includes CLI scripts for local data extraction.
 
 ## Features
 
-- Fetch threads from a tweet URL or ID.
-- Fetch user posts from `@username`, username, or profile URL.
-- Fetch Twitter/X articles from article tweet URLs.
+- Export threads from a tweet URL or ID.
+- Export user posts from `@username`, username, or profile URL.
+- Export Twitter/X articles from article tweet URLs.
 - Preview fetched content and media before export.
-- Export Markdown and JSON where supported.
+- Download Markdown and JSON where supported.
 - Stop long-running fetches and export partial results.
-- Resume background jobs from the `jobId` URL parameter.
-- Start exports from direct links like `xport.frixaco.com/x.com/...` and `xport.frixaco.com/twitter.com/...`.
+- Resume background exports from a `jobId` URL.
+- Start exports from direct links such as `xport.frixaco.com/x.com/...` and `xport.frixaco.com/twitter.com/...`.
 
 ## Demo
 
-| Home                                                             | Stopped User Fetch                                                                      |
-| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| ![Xport home page screenshot](./web/public/readme/home-page.png) | ![Xport stopped user fetch screenshot](./web/public/readme/stop-early-user-fetch.png)   |
+| Home                                                             | Stopped user fetch                                                                    | Article fetch                                                        |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| ![Xport home page screenshot](./web/public/readme/home-page.png) | ![Xport stopped user fetch screenshot](./web/public/readme/stop-early-user-fetch.png) | ![Xport article fetch screenshot](./web/public/readme/article-fetch.png) |
 
 ## Architecture
 
-- **Web:** TanStack Start, TanStack Router, React, shadcn/ui, Tailwind, Nitro output.
-- **API routes:** server-side proxies under `web/src/routes/api`.
-- **Data:** PostgreSQL for auth, fetch jobs, and fetched tweet snapshots.
-- **Billing:** better-auth + Polar credits.
-- **CLI:** Node.js/TypeScript scripts in `cli`.
-- **Package manager:** pnpm workspaces.
+![Resumable backend architecture](./web/public/readme/resumable-backend.svg)
 
-Private Social API access stays server-side through `X_API_URL` and `X_API_KEY`.
+- **Web app:** TanStack Start, TanStack Router, React, shadcn/ui, Tailwind, Nitro.
+- **API:** server routes under `web/src/routes/api`.
+- **Jobs:** PostgreSQL-backed fetch jobs and tweet snapshots.
+- **Billing:** better-auth and Polar credits.
+- **CLI:** Node.js/TypeScript scripts in `cli`.
+- **Workspace:** pnpm workspaces.
+
+Social API access stays server-side through `X_API_URL` and `X_API_KEY`.
+
+Fetch jobs are durable PostgreSQL rows keyed by `jobId`. The browser can create a job, poll status and tweets, request a stop, or reconnect from the same URL on another device. A background runner claims work with an internal `runner_id`, writes progress only while it owns the job, and clears `runner_id` when the job reaches `completed`, `stopped`, or `failed`.
 
 ## Routes
 
 - `/` - main export UI.
 - `/x.com/<path>` and `/twitter.com/<path>` - direct-export redirects.
 - `/auth-error` and `/checkout/success` - utility redirects.
-- `/thread`, `/article`, and `/export` - reserved utility redirects.
 - `/api/*` - server API routes.
 
 ## Exports
@@ -54,7 +57,7 @@ Requirements:
 - Node.js 24.x
 - pnpm 11.x
 - PostgreSQL
-- GitHub/Google OAuth credentials
+- OAuth credentials for local sign-in
 - Polar credentials
 - Social API credentials
 
@@ -101,8 +104,6 @@ Polar:
 - `POLAR_CREDITS_50_CREDITS_PRODUCT_ID` or `SANDBOX_POLAR_CREDITS_50_CREDITS_PRODUCT_ID`
 - `POLAR_CREDITS_500_CREDITS_PRODUCT_ID` or `SANDBOX_POLAR_CREDITS_500_CREDITS_PRODUCT_ID`
 
-Signup credits are granted from the Polar `customer.created` webhook. New customers receive 50 credits when the Polar webhook endpoint named `Xport Signup Credits` is enabled. Disabling that endpoint is the only operational toggle.
-
 Analytics:
 
 - `PUBLIC_POSTHOG_KEY`
@@ -110,7 +111,7 @@ Analytics:
 
 ## Deployment
 
-Production: `https://xport.frixaco.com`
+Production runs on Railway at `https://xport.frixaco.com`.
 
 Railway uses `railway.json`:
 
@@ -128,8 +129,8 @@ railway logs
 Database schema is managed with Drizzle:
 
 - Schema: `web/src/db/schema.ts`
-- Migrations: `web/drizzle/`
-- Generate after schema changes: `pn run db:generate`
+- Migrations: `web/migrations/`
+- Generate migrations: `pn run db:generate`
 - Apply migrations: `pn run db:migrate`
 
 ## CLI

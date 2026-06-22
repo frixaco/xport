@@ -62,8 +62,7 @@ async function resolveExternalCustomerId(polar, identifier) {
     throw new Error(`No Polar customer found for email ${identifier}.`);
   }
 
-  const exactMatches = matches.filter((customer) => customer.email === identifier);
-  const customer = exactMatches[0] ?? matches[0];
+  const customer = matches.find((match) => match.email === identifier) ?? matches[0];
 
   if (!customer.externalId) {
     throw new Error(`Polar customer ${customer.id} has no externalId.`);

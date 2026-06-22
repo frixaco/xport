@@ -68,6 +68,7 @@ function CreditsDisplayInner() {
               variant="outline"
               size="sm"
               className="h-7 px-2"
+              aria-label="Top up credits"
               disabled={checkoutSlug !== null}
             />
           }

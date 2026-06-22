@@ -9,7 +9,7 @@ export const Route = createFileRoute("/$sourceHost/$")({
       throw redirect({ to: "/" });
     }
 
-    const encodedPath = (params._splat ?? "").split("/").map(encodeURIComponent);
+    const encodedPath = (params["_splat"] ?? "").split("/").map(encodeURIComponent);
     const sourceUrl = `https://${normalizedHost}/${encodedPath.join("/")}`;
 
     const searchParams = new URLSearchParams();

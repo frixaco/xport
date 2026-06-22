@@ -16,6 +16,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
       theme={theme as ToasterProps["theme"]}
+      // oxlint-disable-next-line tailwindcss/no-unknown-classes -- Sonner uses this custom class for nested toast selectors.
       className="toaster group"
       icons={{
         success: <RiCheckboxCircleLine className="size-4" />,

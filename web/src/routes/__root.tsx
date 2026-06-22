@@ -1,3 +1,4 @@
+// oxlint-disable-next-line import/no-unassigned-import -- global stylesheet side effect import.
 import "../../globals.css";
 import type { QueryClient } from "@tanstack/react-query";
 import { HeadContent, Outlet, Scripts, createRootRouteWithContext } from "@tanstack/react-router";

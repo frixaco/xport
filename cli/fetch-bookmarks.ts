@@ -145,7 +145,7 @@ function selectMediaUrl(media: ApiMedia): string | undefined {
   if (media.variants?.length) {
     return [...media.variants]
       .filter((variant) => variant.content_type === "video/mp4")
-      .sort((a, b) => (b.bit_rate ?? 0) - (a.bit_rate ?? 0))[0]?.url;
+      .toSorted((a, b) => (b.bit_rate ?? 0) - (a.bit_rate ?? 0))[0]?.url;
   }
 
   return media.preview_image_url;
@@ -161,6 +161,34 @@ function getExtension(url: string, type: string): string {
   return type === "photo" ? ".jpg" : ".mp4";
 }
 
+async function downloadWithYtDlp(url: string, outputPath: string): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const proc = spawn("yt-dlp", ["-q", "-o", outputPath, url], { stdio: "ignore" });
+    let settled = false;
+
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      proc.removeListener("close", onClose);
+      proc.removeListener("error", onError);
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    };
+    const onClose = (code: number | null) => {
+      finish(code === 0 ? undefined : new Error(`yt-dlp exited with ${code}`));
+    };
+    const onError = (error: Error) => {
+      finish(error);
+    };
+
+    proc.once("close", onClose);
+    proc.once("error", onError);
+  });
+}
+
 async function downloadMediaFile(url: string, outputPath: string, type: string): Promise<void> {
   try {
     const response = await fetch(url);
@@ -172,13 +200,7 @@ async function downloadMediaFile(url: string, outputPath: string, type: string):
     writeFileSync(outputPath, Buffer.from(buffer));
   } catch (error) {
     if (type === "video" || type === "animated_gif") {
-      await new Promise<void>((resolve, reject) => {
-        const proc = spawn("yt-dlp", ["-q", "-o", outputPath, url], { stdio: "ignore" });
-        proc.on("close", (code) =>
-          code === 0 ? resolve() : reject(new Error(`yt-dlp exited with ${code}`)),
-        );
-        proc.on("error", reject);
-      });
+      await downloadWithYtDlp(url, outputPath);
       return;
     }
 

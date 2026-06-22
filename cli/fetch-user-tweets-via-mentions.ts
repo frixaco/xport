@@ -163,15 +163,18 @@ async function main() {
     (t) => t.author?.userName?.toLowerCase() === userName.toLowerCase(),
   );
 
-  const posts: ExtractedPost[] = userTweets.map((t) => ({
-    id: t.id,
-    date: t.createdAt,
-    text: t.text,
-    ...(t.quoted_tweet && {
-      quotedUser: t.quoted_tweet.author?.userName,
-      quotedText: t.quoted_tweet.text,
-    }),
-  }));
+  const posts: ExtractedPost[] = userTweets.map((tweet) => {
+    const post: ExtractedPost = {
+      id: tweet.id,
+      date: tweet.createdAt,
+      text: tweet.text,
+    };
+    if (tweet.quoted_tweet) {
+      post.quotedUser = tweet.quoted_tweet.author?.userName;
+      post.quotedText = tweet.quoted_tweet.text;
+    }
+    return post;
+  });
 
   posts.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 

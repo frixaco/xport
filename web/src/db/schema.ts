@@ -105,6 +105,7 @@ export const fetchJobs = pgTable(
       .notNull()
       .default("queued"),
     stopRequested: boolean("stop_requested").notNull().default(false),
+    runnerId: text("runner_id"),
     startedAt: timestamp("started_at", { withTimezone: true, mode: "date" }),
     finishedAt: timestamp("finished_at", { withTimezone: true, mode: "date" }),
     expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),

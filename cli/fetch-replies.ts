@@ -121,7 +121,7 @@ function extractMedia(tweet: Tweet): ExtractedReply["media"] {
     ) {
       const best = item.video_info.variants
         .filter((v) => v.bitrate !== undefined)
-        .sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0))[0];
+        .toSorted((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0))[0];
       if (best) media.push({ type: "video", url: best.url });
     }
   }

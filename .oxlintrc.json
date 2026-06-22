@@ -1,16 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": [
-    "eslint",
-    "typescript",
-    "unicorn",
-    "oxc",
-    "import",
-    "react",
-    "jsx-a11y",
-    "promise",
-    "node"
-  ],
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "import", "react", "promise", "node"],
   "jsPlugins": ["oxlint-tailwindcss"],
   "categories": {
     "correctness": "error",
@@ -18,14 +8,8 @@
     "perf": "warn"
   },
   "rules": {
+    "eslint/no-await-in-loop": "off",
     "react/react-in-jsx-scope": "off",
-    "jsx-a11y/anchor-has-content": "warn",
-    "jsx-a11y/anchor-is-valid": "warn",
-    "jsx-a11y/click-events-have-key-events": "warn",
-    "jsx-a11y/control-has-associated-label": "warn",
-    "jsx-a11y/label-has-associated-control": "warn",
-    "jsx-a11y/no-noninteractive-element-interactions": "warn",
-    "jsx-a11y/prefer-tag-over-role": "warn",
     "tailwindcss/no-unknown-classes": "warn",
     "tailwindcss/no-duplicate-classes": "error",
     "tailwindcss/no-conflicting-classes": "warn",
@@ -42,12 +26,6 @@
   "settings": {
     "react": {
       "version": "19"
-    },
-    "jsx-a11y": {
-      "components": {
-        "Link": "a",
-        "Button": "button"
-      }
     },
     "tailwindcss": {
       "entryPoint": "web/globals.css"

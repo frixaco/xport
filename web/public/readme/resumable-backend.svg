@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="480" viewBox="0 0 1280 480" role="img" aria-labelledby="title desc">
+  <title id="title">Resumable backend architecture</title>
+  <desc id="desc">Browser talks to the backend. The backend owns API routes and the fetch runner, stores job state in Postgres, fetches from Twitter/X, and charges billing.</desc>
+  <defs>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563eb" />
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#16a34a" />
+    </marker>
+    <marker id="arrow-orange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#ea580c" />
+    </marker>
+    <style>
+      text {
+        font-family: Arial, Helvetica, sans-serif;
+        fill: #111827;
+      }
+      .box {
+        fill: #ffffff;
+        stroke: #cbd5e1;
+        stroke-width: 2;
+      }
+      .backend {
+        fill: #f8fafc;
+        stroke: #2563eb;
+        stroke-width: 2.5;
+      }
+      .inner {
+        fill: #ffffff;
+        stroke: #94a3b8;
+        stroke-width: 1.8;
+      }
+      .label {
+        font-size: 24px;
+        font-weight: 700;
+      }
+      .inner-label {
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .sub {
+        font-size: 17px;
+        fill: #475569;
+      }
+      .tiny {
+        font-size: 14px;
+        fill: #64748b;
+      }
+    </style>
+  </defs>
+
+  <rect width="1280" height="480" fill="#ffffff" />
+
+  <g transform="translate(48 140)">
+    <rect class="box" width="160" height="140" rx="12" />
+    <text class="label" x="80" y="54" text-anchor="middle">Browser</text>
+    <text class="sub" x="80" y="92" text-anchor="middle">jobId URL</text>
+    <text class="sub" x="80" y="118" text-anchor="middle">poll / resume</text>
+  </g>
+
+  <g transform="translate(300 70)">
+    <rect class="backend" width="410" height="280" rx="16" />
+    <text class="label" x="205" y="44" text-anchor="middle">Backend</text>
+
+    <g transform="translate(34 82)">
+      <rect class="inner" width="156" height="148" rx="10" />
+      <text class="inner-label" x="78" y="44" text-anchor="middle">API Routes</text>
+      <text class="sub" x="78" y="84" text-anchor="middle">create</text>
+      <text class="sub" x="78" y="110" text-anchor="middle">status</text>
+      <text class="sub" x="78" y="136" text-anchor="middle">stop</text>
+    </g>
+
+    <g transform="translate(220 82)">
+      <rect class="inner" width="156" height="148" rx="10" />
+      <text class="inner-label" x="78" y="44" text-anchor="middle">Fetch Runner</text>
+      <text class="sub" x="78" y="84" text-anchor="middle">runner_id</text>
+      <text class="sub" x="78" y="110" text-anchor="middle">heartbeat</text>
+      <text class="sub" x="78" y="136" text-anchor="middle">persist</text>
+    </g>
+  </g>
+
+  <g transform="translate(802 140)">
+    <rect class="box" width="160" height="140" rx="12" />
+    <text class="label" x="80" y="54" text-anchor="middle">Postgres</text>
+    <text class="sub" x="80" y="92" text-anchor="middle">fetch_jobs</text>
+    <text class="sub" x="80" y="118" text-anchor="middle">fetch_tweets</text>
+  </g>
+
+  <g transform="translate(1054 84)">
+    <rect class="box" width="170" height="110" rx="12" />
+    <text class="label" x="85" y="48" text-anchor="middle">Twitter/X API</text>
+    <text class="sub" x="85" y="78" text-anchor="middle">fetch pages</text>
+  </g>
+
+  <g transform="translate(1054 276)">
+    <rect class="box" width="170" height="110" rx="12" />
+    <text class="label" x="85" y="48" text-anchor="middle">Billing</text>
+    <text class="sub" x="85" y="78" text-anchor="middle">charge credits</text>
+  </g>
+
+  <path d="M 208 188 H 300" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)" />
+  <text class="tiny" x="254" y="174" text-anchor="middle">create job</text>
+
+  <path d="M 300 236 H 208" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)" />
+  <text class="tiny" x="254" y="260" text-anchor="middle">poll / resume</text>
+
+  <path d="M 710 188 H 802" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrow-green)" />
+  <text class="tiny" x="756" y="174" text-anchor="middle">store progress</text>
+
+  <path d="M 802 236 H 710" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrow-green)" />
+  <text class="tiny" x="756" y="260" text-anchor="middle">claim runner_id</text>
+
+  <path d="M 710 150 C 830 84 930 114 1054 138" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrow-green)" />
+  <text class="tiny" x="894" y="96" text-anchor="middle">fetch pages</text>
+
+  <path d="M 710 282 C 830 364 930 344 1054 332" fill="none" stroke="#ea580c" stroke-width="2.5" stroke-dasharray="8 8" marker-end="url(#arrow-orange)" />
+  <text class="tiny" x="894" y="370" text-anchor="middle">charge credits</text>
+
+  <g transform="translate(300 390)">
+    <rect width="410" height="52" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2" />
+    <circle cx="28" cy="26" r="7" fill="#16a34a" />
+    <text class="sub" x="50" y="32">only current runner_id writes</text>
+  </g>
+
+  <g transform="translate(802 390)">
+    <rect width="422" height="52" rx="10" fill="#fff7ed" stroke="#fb923c" stroke-width="2" />
+    <circle cx="28" cy="26" r="7" fill="#ea580c" />
+    <text class="sub" x="50" y="32">stale &gt;5m can reclaim; terminal clears runner_id</text>
+  </g>
+</svg>

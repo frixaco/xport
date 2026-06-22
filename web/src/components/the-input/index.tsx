@@ -208,7 +208,6 @@ export function TheInput({ search }: { search: HomeSearch }) {
           isActive && "-translate-y-10",
         )}
         onSubmit={handleSubmit}
-        role="search"
       >
         {showResultLayout ? (
           <Button

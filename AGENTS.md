@@ -1,12 +1,14 @@
+# Agent Instructions
+
 Use pnpm.
 
 ## Product
 
 - Xport exports Twitter/X posts, threads, user timelines, and articles.
-- Main public page is `/`.
-- API routes live under `/api/*`.
+- Main public page: `/`.
+- API routes: `/api/*`.
 - Direct-export routes `/<x.com|twitter.com>/<...>` redirect to `/` with `input=<source-url>` and auto-start export.
-- `/auth-error` and `/checkout/success` are utility redirects.
+- Utility redirects: `/auth-error` and `/checkout/success`.
 - Keep Social API calls server-side through API routes using `X_API_URL` and `X_API_KEY`.
 - Use both "Twitter" and "X" in user-facing copy when relevant.
 
@@ -31,9 +33,18 @@ export const Route = createFileRoute("/some-route")({
 });
 ```
 
+## Resumable Jobs
+
+- Fetch jobs are stored in `xport_fetch_jobs`; fetched posts are stored in `xport_fetch_tweets`.
+- Job URLs use `jobId` as the durable browser handle.
+- Background runners claim work with `runner_id`.
+- Only the current `runner_id` may update progress, charged credits, or terminal status.
+- Stale `running` jobs are reclaimable when `updated_at` is older than the runner stale window.
+- Terminal jobs must clear `runner_id`.
+
 ## SEO
 
-- `/` needs metadata, canonical, and JSON-LD.
+- `/` needs metadata, canonical URL, and JSON-LD.
 - Utility redirects do not need page metadata.
 - If `/thread`, `/article`, or `/export` become real public pages, add canonical metadata and structured data.
 
@@ -87,7 +98,7 @@ Database schema is managed with Drizzle:
 - Edit schema in `web/src/db/schema.ts`.
 - Generate migrations with `pn run db:generate`.
 - Apply migrations with `pn run db:migrate`.
-- Keep generated migration files in `web/drizzle/`.
+- Keep generated migration files in `web/migrations/`.
 
 After deploy, wait for `railway service status` to show `SUCCESS` before testing.
 
@@ -122,13 +133,14 @@ Check:
 - Stopped jobs remain exportable.
 - Direct-export URLs redirect to `/?input=...` and auto-start.
 - Background jobs add `jobId` and resume after reload.
+- Resumable jobs clear `runner_id` after completion, stop, or failure.
 - No unexpected non-200 document/fetch requests.
 - Railway logs have no unhandled runtime errors.
 
 DB spot check:
 
 ```sql
-SELECT id, request_type, status, stop_requested, pages_fetched, raw_fetched_tweets, stored_tweets, charged_credits, created_at
+SELECT id, request_type, status, runner_id, stop_requested, pages_fetched, raw_fetched_tweets, stored_tweets, charged_credits, created_at
 FROM xport_fetch_jobs
 ORDER BY created_at DESC LIMIT 10;
 ```

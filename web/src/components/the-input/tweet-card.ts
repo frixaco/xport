@@ -45,7 +45,7 @@ function addUniqueMedia(target: MediaItem[], item: MediaItem): void {
   target.push(item);
 }
 
-export function extractMediaFromText(text: string): MediaItem[] {
+function extractMediaFromText(text: string): MediaItem[] {
   const media: MediaItem[] = [];
   const matches = text.matchAll(URL_PATTERN);
 

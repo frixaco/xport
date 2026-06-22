@@ -33,6 +33,13 @@ async function fetchSession(): Promise<typeof authClient.$Infer.Session | null> 
   return result.data ?? null;
 }
 
+function handleSignIn(provider: "github" | "google") {
+  authClient.signIn.social({
+    provider,
+    callbackURL: "/",
+  });
+}
+
 function GitHubIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className} fill="currentColor">
@@ -79,13 +86,6 @@ export function Header() {
       queryClient.invalidateQueries({ queryKey: creditsQueryKey });
     },
   });
-
-  const handleSignIn = (provider: "github" | "google") => {
-    authClient.signIn.social({
-      provider,
-      callbackURL: "/",
-    });
-  };
 
   const handleSignOut = () => {
     signOutMutation.mutate();
@@ -163,7 +163,6 @@ export function Header() {
             fill="none"
           />
         </svg>
-        <span>Xport</span>
       </div>
 
       <div className="flex items-center gap-3">
@@ -181,6 +180,7 @@ export function Header() {
                   variant="ghost"
                   size="icon"
                   className="size-8 rounded-full bg-chart-2 font-bold text-white hover:bg-chart-2/80"
+                  aria-label="Account menu"
                 />
               }
             >
@@ -204,7 +204,9 @@ export function Header() {
           </DropdownMenu>
         ) : (
           <Popover>
-            <PopoverTrigger render={<Button variant="outline" size="sm" />}>Sign in</PopoverTrigger>
+            <PopoverTrigger render={<Button variant="outline" size="sm" aria-label="Sign in" />}>
+              Sign in
+            </PopoverTrigger>
             <PopoverContent align="end" sideOffset={8} className="flex flex-col gap-2.5">
               <PopoverHeader>
                 <PopoverTitle>Sign in to Xport</PopoverTitle>

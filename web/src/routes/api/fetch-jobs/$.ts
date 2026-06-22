@@ -3,7 +3,11 @@ import { auth } from "@/lib/auth";
 import { parseTwitterInput } from "@/lib/url-parser";
 import { BillingAccessError, assertSufficientCredits } from "@/lib/billing-access";
 import { errorJson } from "@/lib/api-routes";
-import { createFetchJob, runFetchLoop, type FetchJobRequestType } from "@/lib/fetch-job";
+import {
+  createFetchJob,
+  startFetchJobInBackground,
+  type FetchJobRequestType,
+} from "@/lib/fetch-job";
 
 export const Route = createFileRoute("/api/fetch-jobs/$")({
   server: {
@@ -49,13 +53,7 @@ export const Route = createFileRoute("/api/fetch-jobs/$")({
           inputNormalized,
         });
 
-        const authHeaders = new Headers();
-        const cookie = request.headers.get("cookie");
-        if (cookie) authHeaders.set("cookie", cookie);
-        const authorization = request.headers.get("authorization");
-        if (authorization) authHeaders.set("authorization", authorization);
-
-        runFetchLoop(jobId, requestType, inputNormalized, authHeaders).catch(console.error);
+        startFetchJobInBackground(jobId, request.headers);
 
         return Response.json({ jobId }, { status: 201 });
       },

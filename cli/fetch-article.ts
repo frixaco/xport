@@ -120,7 +120,7 @@ function applyInlineStyles(text: string, ranges?: InlineStyleRange[]): string {
   if (!ranges || ranges.length === 0) return text;
 
   let result = text;
-  const sortedRanges = [...ranges].sort((a, b) => b.offset - a.offset);
+  const sortedRanges = ranges.toSorted((a, b) => b.offset - a.offset);
 
   const styleMap: Record<string, string> = {
     Bold: "**",
