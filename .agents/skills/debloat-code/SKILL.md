@@ -33,6 +33,7 @@ Prefer fewer, clearer ownership boundaries over more "clean-looking" files. Do n
    - Pure helpers may be shared; runtime clients usually should not be.
 
 4. **Prefer evidence-backed moves**
+
 - Delete unused files only after confirming no imports or framework convention usage.
 - Inline one-use helpers when the helper name adds less clarity than the code.
 - Extract only when it removes real duplication, protects a runtime boundary, or gives a stable concept a name.

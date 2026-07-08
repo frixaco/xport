@@ -6,9 +6,19 @@ import {
 } from "@/lib/billing-access";
 import { buildUsageMetadata, withUsageMetadata, type XportUsageMetadata } from "@/lib/credits";
 import { getJobStatus, type FetchJobRow } from "@/lib/fetch-job";
+import { captureServerEvent, captureServerException } from "@/lib/server-telemetry";
 import { XApiError } from "@/lib/x-api";
 
 type JsonObject = Record<string, unknown>;
+
+interface ApiTelemetryContext {
+  route: string;
+  fallbackMessage: string;
+  inputNormalized?: string;
+  jobId?: string;
+  requestType?: string;
+  userId?: string | null;
+}
 
 function toResponseStatus(status: number): number {
   return status >= 400 && status <= 599 ? status : 500;
@@ -42,15 +52,23 @@ function handleApiRouteError(error: unknown, fallbackMessage: string): Response 
   return errorJson(fallbackMessage, 500);
 }
 
-export async function withApiRouteErrors(
-  operation: () => Promise<Response>,
-  fallbackMessage: string,
+export async function withApiRouteTelemetry(
+  request: Request,
+  context: ApiTelemetryContext,
+  operation: (context: ApiTelemetryContext) => Promise<Response>,
 ): Promise<Response> {
+  let response: Response;
+  let error: unknown;
+
   try {
-    return await operation();
-  } catch (error) {
-    return handleApiRouteError(error, fallbackMessage);
+    response = await operation(context);
+  } catch (routeError) {
+    error = routeError;
+    response = handleApiRouteError(routeError, context.fallbackMessage);
   }
+
+  await reportApiFailure(request, response, context, error);
+  return response;
 }
 
 export async function jsonWithChargedUsage<T extends object>(
@@ -119,4 +137,64 @@ export function jobStatusJson(
   }
 
   return payload;
+}
+
+async function reportApiFailure(
+  request: Request,
+  response: Response,
+  context: ApiTelemetryContext,
+  error: unknown,
+): Promise<void> {
+  if (response.ok) return;
+
+  const payload = await response
+    .clone()
+    .json()
+    .catch(() => null);
+  const userId = context.userId ?? (await getRequestUserId(request));
+  const properties = {
+    route: context.route,
+    method: request.method,
+    status: response.status,
+    error_code:
+      isObject(payload) && typeof payload.code === "string"
+        ? payload.code
+        : `HTTP_${response.status}`,
+    details_category: getDetailsCategory(payload),
+    user_id: userId,
+    job_id: context.jobId,
+    request_type: context.requestType,
+    input_normalized: context.inputNormalized,
+  };
+
+  captureServerEvent("api request failed", {
+    distinctId: userId,
+    properties,
+  });
+  captureServerException(error ?? new Error(`API request failed (${response.status})`), {
+    distinctId: userId,
+    properties,
+  });
+}
+
+async function getRequestUserId(request: Request): Promise<string | null> {
+  try {
+    const session = await auth.api.getSession({ headers: request.headers });
+    return session?.user.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function getDetailsCategory(payload: unknown): string | undefined {
+  if (!isObject(payload) || !("details" in payload)) return undefined;
+
+  const details = payload.details;
+  if (details === null || details === undefined) return undefined;
+  if (isObject(details) && typeof details.status === "string") return `status:${details.status}`;
+  return Array.isArray(details) ? "array" : typeof details;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }

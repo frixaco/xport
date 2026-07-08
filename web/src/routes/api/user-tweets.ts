@@ -8,55 +8,67 @@ import {
   firstSearchParam,
   jsonWithChargedUsage,
   parseBooleanSearchParam,
-  withApiRouteErrors,
+  withApiRouteTelemetry,
 } from "@/lib/api-routes";
 
 export const Route = createFileRoute("/api/user-tweets")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const url = new URL(request.url);
-        const rawUserInput = firstSearchParam(url, ["userName", "username", "url", "input"]);
+        return withApiRouteTelemetry(
+          request,
+          {
+            route: "/api/user-tweets",
+            fallbackMessage: "Unexpected error while fetching user tweets.",
+            requestType: "user",
+          },
+          async (telemetry) => {
+            const url = new URL(request.url);
+            const rawUserInput = firstSearchParam(url, ["userName", "username", "url", "input"]);
 
-        if (!rawUserInput) {
-          return errorJson("Missing required query param: userName (or username/url/input).", 400);
-        }
+            if (!rawUserInput) {
+              return errorJson(
+                "Missing required query param: userName (or username/url/input).",
+                400,
+              );
+            }
 
-        const userName = parseUsername(rawUserInput);
-        if (!userName) {
-          return errorJson(
-            "Invalid user input. Provide a valid @username, username, or profile URL.",
-            400,
-          );
-        }
+            const userName = parseUsername(rawUserInput);
+            if (!userName) {
+              return errorJson(
+                "Invalid user input. Provide a valid @username, username, or profile URL.",
+                400,
+              );
+            }
 
-        const includeReplies = parseBooleanSearchParam(url.searchParams.get("includeReplies"));
-        const cursor = url.searchParams.get("cursor") ?? undefined;
-        return withApiRouteErrors(async () => {
-          await assertSufficientCredits(request, MIN_PREFLIGHT_CREDITS);
-          const data = await fetchUserLastTweets(userName, cursor);
-          const tweetCount = Array.isArray(data.data?.tweets) ? data.data.tweets.length : 0;
-          const chargedCredits = calculateTweetListCredits(tweetCount);
+            telemetry.inputNormalized = userName;
+            const includeReplies = parseBooleanSearchParam(url.searchParams.get("includeReplies"));
+            const cursor = url.searchParams.get("cursor") ?? undefined;
+            await assertSufficientCredits(request, MIN_PREFLIGHT_CREDITS);
+            const data = await fetchUserLastTweets(userName, cursor);
+            const tweetCount = Array.isArray(data.data?.tweets) ? data.data.tweets.length : 0;
+            const chargedCredits = calculateTweetListCredits(tweetCount);
 
-          if (includeReplies) {
-            return jsonWithChargedUsage(request, data, { credits: chargedCredits, tweetCount });
-          }
+            if (includeReplies) {
+              return jsonWithChargedUsage(request, data, { credits: chargedCredits, tweetCount });
+            }
 
-          const tweets = data.data?.tweets ?? [];
-          const filteredTweets = tweets.filter((tweet) => !(tweet.isReply || tweet.inReplyToId));
+            const tweets = data.data?.tweets ?? [];
+            const filteredTweets = tweets.filter((tweet) => !(tweet.isReply || tweet.inReplyToId));
 
-          return jsonWithChargedUsage(
-            request,
-            {
-              ...data,
-              data: {
-                ...data.data,
-                tweets: filteredTweets,
+            return jsonWithChargedUsage(
+              request,
+              {
+                ...data,
+                data: {
+                  ...data.data,
+                  tweets: filteredTweets,
+                },
               },
-            },
-            { credits: chargedCredits, tweetCount },
-          );
-        }, "Unexpected error while fetching user tweets.");
+              { credits: chargedCredits, tweetCount },
+            );
+          },
+        );
       },
     },
   },

@@ -15,8 +15,8 @@ Xport exports Twitter/X posts, threads, user timelines, and articles from a web 
 
 ## Demo
 
-| Home                                                             | Stopped user fetch                                                                    | Article fetch                                                        |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Home                                                             | Stopped user fetch                                                                    | Article fetch                                                            |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | ![Xport home page screenshot](./web/public/readme/home-page.png) | ![Xport stopped user fetch screenshot](./web/public/readme/stop-early-user-fetch.png) | ![Xport article fetch screenshot](./web/public/readme/article-fetch.png) |
 
 ## Architecture

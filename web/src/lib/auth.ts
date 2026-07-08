@@ -5,6 +5,7 @@ import type { WebhookCustomerCreatedPayload } from "@polar-sh/sdk/models/compone
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import * as schema from "@/db/schema";
 import { db } from "@/lib/db";
+import { captureServerEvent } from "@/lib/server-telemetry";
 import { polarClient } from "./polar";
 
 const USAGE_EVENT_NAME = "usage";
@@ -34,6 +35,20 @@ export const auth = betterAuth({
     provider: "pg",
     schema,
   }),
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (createdUser) => {
+          captureServerEvent("user signed up", {
+            distinctId: createdUser.id,
+            properties: {
+              user_id: createdUser.id,
+            },
+          });
+        },
+      },
+    },
+  },
   emailAndPassword: {
     enabled: false,
   },

@@ -1,8 +1,9 @@
 import { SubmitEvent, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { usePostHog } from "@posthog/react";
 import { toast } from "sonner";
-import { parseUsername } from "@/lib/url-parser";
+import { parseTwitterInput, parseUsername } from "@/lib/url-parser";
 import { createFetchJob, fetchArticleResult, fetchJobStatus, stopFetchJob } from "./api";
 import type { JobTweetPage } from "./api";
 import { fetchJobQueries, fetchJobQueryKeys } from "./queries";
@@ -26,9 +27,12 @@ import {
 
 const POLL_INTERVAL_MS = 2000;
 
+type TelemetryProperties = Record<string, string | number | boolean | null | undefined>;
+
 interface ActiveJob {
   jobId: string;
   requestType: FetchJobRequestType;
+  inputNormalized: string | null;
   sourceUsername: string | null;
 }
 
@@ -104,21 +108,72 @@ function createActiveJobFromResume(jobId: string, payload: FetchJobResumeRespons
   return {
     jobId,
     requestType: payload.requestType,
+    inputNormalized: payload.inputNormalized,
     sourceUsername: parseUsername(payload.inputRaw),
   };
 }
 
 function createActiveJobFromInput(jobId: string, input: string): ActiveJob {
+  const parsed = parseTwitterInput(input);
+
   return {
     jobId,
-    requestType:
-      buildRequestConfig(input, detectUrlType(input))?.type === "thread" ? "thread" : "user",
-    sourceUsername: parseUsername(input),
+    requestType: parsed?.type === "tweet" ? "thread" : "user",
+    inputNormalized: parsed?.type === "tweet" ? parsed.tweetId : (parsed?.username ?? null),
+    sourceUsername:
+      parsed?.type === "tweet" ? (parsed.username ?? null) : (parsed?.username ?? null),
   };
+}
+
+function getJobTelemetryProperties(
+  activeJob: ActiveJob,
+  jobStatus?: FetchJobStatusResponse | null,
+): TelemetryProperties {
+  return {
+    job_id: activeJob.jobId,
+    request_type: activeJob.requestType,
+    input_normalized: activeJob.inputNormalized,
+    status: jobStatus?.status,
+    pages_fetched: jobStatus?.pagesFetched,
+    raw_fetched_tweets: jobStatus?.rawFetchedTweets,
+    stored_tweets: jobStatus?.storedTweets,
+    charged_credits: jobStatus?.chargedCredits,
+    error_code: jobStatus?.error?.code,
+  };
+}
+
+function getResultTelemetryProperties(
+  result: ResultState,
+  properties: TelemetryProperties = {},
+): TelemetryProperties {
+  const renderedTweetCount =
+    result.kind === "article"
+      ? undefined
+      : result.kind === "thread"
+        ? result.tweets.length + (result.mainTweet ? 1 : 0)
+        : result.tweets.length;
+
+  return {
+    result_kind: result.kind,
+    tweet_count: result.usage?.tweetCount ?? renderedTweetCount,
+    charged_credits: result.usage?.chargedCredits,
+    ...properties,
+  };
+}
+
+function compactTelemetryProperties(
+  properties: TelemetryProperties,
+): Record<string, string | number | boolean | null> {
+  const compacted: Record<string, string | number | boolean | null> = {};
+  for (const [key, value] of Object.entries(properties)) {
+    if (value !== undefined) compacted[key] = value;
+  }
+  return compacted;
 }
 
 export function useExportFlow(search: HomeSearch) {
   const navigate = useNavigate();
+  const posthog = usePostHog();
   const queryClient = useQueryClient();
   const [value, setValue] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -130,6 +185,15 @@ export function useExportFlow(search: HomeSearch) {
   currentSearchRef.current = search;
 
   const detected = detectUrlType(value);
+
+  function captureEvent(event: string, properties: TelemetryProperties = {}) {
+    posthog?.capture(event, compactTelemetryProperties(properties));
+  }
+
+  function captureException(error: unknown, properties: TelemetryProperties = {}) {
+    const exception = error instanceof Error ? error : new Error("Client export flow error");
+    posthog?.captureException(exception, compactTelemetryProperties(properties));
+  }
 
   function setJobIdInUrl(jobId: string | null, options?: { clearInput?: boolean }) {
     const nextSearch: HomeSearch = { ...currentSearchRef.current };
@@ -165,11 +229,22 @@ export function useExportFlow(search: HomeSearch) {
 
   const articleMutation = useMutation({
     mutationFn: fetchArticleResult,
+    onError: (error) => {
+      captureException(error, {
+        operation: "fetch_article",
+        request_type: "article",
+      });
+    },
   });
   const createJobMutation = useMutation({
     mutationFn: createFetchJob,
     onSuccess: ({ jobId }) => {
       setJobIdInUrl(jobId);
+    },
+    onError: (error) => {
+      captureException(error, {
+        operation: "create_fetch_job",
+      });
     },
   });
   const resumeJobMutation = useMutation({
@@ -177,6 +252,12 @@ export function useExportFlow(search: HomeSearch) {
     onSuccess: (payload, jobId) => {
       setValue(payload.inputRaw);
       queryClient.setQueryData(fetchJobQueryKeys.status(jobId), payload);
+    },
+    onError: (error, jobId) => {
+      captureException(error, {
+        operation: "resume_fetch_job",
+        job_id: jobId,
+      });
     },
   });
 
@@ -211,7 +292,13 @@ export function useExportFlow(search: HomeSearch) {
       });
       queryClient.invalidateQueries({ queryKey: fetchJobQueryKeys.status(activeJob.jobId) });
     },
-    onError: () => {
+    onError: (error) => {
+      if (activeJob) {
+        captureException(error, {
+          operation: "stop_fetch_job",
+          ...getJobTelemetryProperties(activeJob, jobStatusQuery.data),
+        });
+      }
       toast.error("Failed to stop fetch.");
     },
   });
@@ -297,6 +384,14 @@ export function useExportFlow(search: HomeSearch) {
       return;
     }
 
+    const parsedInput = parseTwitterInput(trimmed);
+    captureEvent("export started", {
+      request_type: requestConfig.type === "user-tweets" ? "user" : requestConfig.type,
+      input_normalized:
+        parsedInput?.type === "tweet" ? parsedInput.tweetId : (parsedInput?.username ?? null),
+      input_type: inputType,
+    });
+
     if (requestConfig.type === "article") {
       articleMutation.mutate(trimmed);
       return;
@@ -310,6 +405,7 @@ export function useExportFlow(search: HomeSearch) {
 
     if (isJobActive) {
       if (isStopRequested || !activeJob) return;
+      captureEvent("fetch job stop requested", getJobTelemetryProperties(activeJob, jobStatus));
       stopJobMutation.mutate(activeJob.jobId);
       return;
     }
@@ -368,6 +464,10 @@ export function useExportFlow(search: HomeSearch) {
     try {
       exportResult = await prepareExportResult();
     } catch (exportError) {
+      captureException(exportError, {
+        operation: "prepare_download",
+        format,
+      });
       toast.error(exportError instanceof Error ? exportError.message : "Failed to prepare export.");
       return;
     }
@@ -386,6 +486,10 @@ export function useExportFlow(search: HomeSearch) {
     });
 
     if (!window.URL?.createObjectURL) {
+      captureException(new Error("Download object URL unavailable"), {
+        operation: "download_export",
+        format,
+      });
       toast.error("Download is not available in this browser.");
       return;
     }
@@ -403,7 +507,18 @@ export function useExportFlow(search: HomeSearch) {
       anchor.remove();
       window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 0);
       toast.success(`${payload.label} downloaded.`);
-    } catch {
+      captureEvent(
+        "export downloaded",
+        getResultTelemetryProperties(exportResult, {
+          format,
+          is_partial: isPartialExport,
+        }),
+      );
+    } catch (downloadError) {
+      captureException(downloadError, {
+        operation: "download_export",
+        format,
+      });
       toast.error("Download failed. Try again.");
     }
   }
@@ -413,6 +528,9 @@ export function useExportFlow(search: HomeSearch) {
     try {
       exportResult = await prepareExportResult();
     } catch (exportError) {
+      captureException(exportError, {
+        operation: "prepare_markdown_copy",
+      });
       toast.error(exportError instanceof Error ? exportError.message : "Failed to prepare export.");
       return;
     }
@@ -421,6 +539,9 @@ export function useExportFlow(search: HomeSearch) {
     const payload = getMarkdownCopyPayload(exportResult);
 
     if (!navigator?.clipboard?.writeText) {
+      captureException(new Error("Clipboard API unavailable"), {
+        operation: "copy_markdown",
+      });
       toast.error("Clipboard is not available in this browser.");
       return;
     }
@@ -431,7 +552,11 @@ export function useExportFlow(search: HomeSearch) {
       if (markdownCopiedTimerRef.current) clearTimeout(markdownCopiedTimerRef.current);
       markdownCopiedTimerRef.current = setTimeout(() => setMarkdownCopied(false), 1500);
       toast.success(`${payload.label} copied to clipboard.`);
-    } catch {
+      captureEvent("markdown copied", getResultTelemetryProperties(exportResult));
+    } catch (copyError) {
+      captureException(copyError, {
+        operation: "copy_markdown",
+      });
       toast.error("Copy failed. Check clipboard permission and try again.");
     }
   }

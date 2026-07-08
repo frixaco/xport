@@ -4,6 +4,7 @@ import { fetchJobs, fetchTweets } from "@/db/schema";
 import { db } from "@/lib/db";
 import { fetchThreadContext, fetchUserLastTweets, XApiError, type XPost } from "@/lib/x-api";
 import { ingestCreditsUsage } from "@/lib/billing-access";
+import { captureServerEvent, captureServerException } from "@/lib/server-telemetry";
 
 type FetchJobStatus = "queued" | "running" | "completed" | "stopped" | "failed";
 export type FetchJobRequestType = "thread" | "user";
@@ -108,6 +109,7 @@ export async function requestJobStop(jobId: string): Promise<FetchJobRow | null>
     .returning();
 
   if (job) {
+    if (job.status === "stopped") captureFinishedJob(job);
     return job;
   }
 
@@ -190,6 +192,11 @@ async function finishJob(
       ),
     )
     .returning({ id: fetchJobs.id });
+
+  if (job) {
+    const finishedJob = await getJobStatus(jobId);
+    if (finishedJob) captureFinishedJob(finishedJob);
+  }
 
   return Boolean(job);
 }
@@ -407,5 +414,49 @@ export function startFetchJobInBackground(jobId: string, requestHeaders: Headers
   const authorization = requestHeaders.get("authorization");
   if (authorization) authHeaders.set("authorization", authorization);
 
-  runFetchLoop(jobId, authHeaders).catch(console.error);
+  runFetchLoop(jobId, authHeaders).catch((error: unknown) => {
+    console.error(error);
+    captureServerException(error, {
+      properties: {
+        job_id: jobId,
+        error_code: "FETCH_JOB_UNHANDLED",
+      },
+    });
+  });
+}
+
+function captureFinishedJob(job: FetchJobRow): void {
+  const event = getFinishedJobEvent(job.status);
+  if (!event) return;
+
+  const properties = {
+    job_id: job.id,
+    request_type: job.requestType,
+    input_normalized: job.inputNormalized,
+    status: job.status,
+    pages_fetched: job.pagesFetched,
+    raw_fetched_tweets: job.rawFetchedTweets,
+    stored_tweets: job.storedTweets,
+    charged_credits: job.chargedCredits,
+    error_code: job.errorCode,
+  };
+
+  captureServerEvent(event, {
+    distinctId: job.ownerUserId,
+    properties,
+  });
+
+  if (job.status === "failed") {
+    captureServerException(new Error("Fetch job failed"), {
+      distinctId: job.ownerUserId,
+      properties,
+    });
+  }
+}
+
+function getFinishedJobEvent(status: FetchJobStatus): string | null {
+  if (status === "completed") return "fetch job completed";
+  if (status === "stopped") return "fetch job stopped";
+  if (status === "failed") return "fetch job failed";
+  return null;
 }

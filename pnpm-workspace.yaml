@@ -10,3 +10,5 @@ allowBuilds:
   protobufjs: true
   sharp: true
   unrs-resolver: true
+minimumReleaseAgeExclude:
+  - posthog-node@5.40.0

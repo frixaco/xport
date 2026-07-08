@@ -33,7 +33,8 @@ async function fetchSession(): Promise<typeof authClient.$Infer.Session | null> 
   return result.data ?? null;
 }
 
-function handleSignIn(provider: "github" | "google") {
+function handleSignIn(provider: "github" | "google", posthog: ReturnType<typeof usePostHog>) {
+  posthog?.capture("sign in started", { provider });
   authClient.signIn.social({
     provider,
     callbackURL: "/",
@@ -106,17 +107,16 @@ export function Header() {
     if (!user?.id) return;
 
     posthog?.identify(user.id, {
-      email: user.email,
-      name: user.name,
+      user_id: user.id,
     });
 
     if (typeof window === "undefined") return;
     const key = `${ACCOUNT_SEEN_SESSION_KEY}:${user.id}`;
     if (window.sessionStorage.getItem(key)) return;
 
-    posthog?.capture("account_seen");
+    posthog?.capture("account seen", { user_id: user.id });
     window.sessionStorage.setItem(key, "1");
-  }, [posthog, user?.email, user?.id, user?.name]);
+  }, [posthog, user?.id]);
 
   return (
     <header className="flex items-center justify-between px-6 py-3">
@@ -215,7 +215,7 @@ export function Header() {
               <Button
                 variant="outline"
                 className="h-10 gap-2.5"
-                onClick={() => handleSignIn("google")}
+                onClick={() => handleSignIn("google", posthog)}
               >
                 <GoogleIcon className="size-5" />
                 Continue with Google
@@ -224,7 +224,7 @@ export function Header() {
               <Button
                 variant="outline"
                 className="h-10 gap-2.5"
-                onClick={() => handleSignIn("github")}
+                onClick={() => handleSignIn("github", posthog)}
               >
                 <GitHubIcon className="size-5" />
                 Continue with GitHub

@@ -1,23 +1,29 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { polarClient } from "@/lib/polar";
+import { errorJson, withApiRouteTelemetry } from "@/lib/api-routes";
 
 export const Route = createFileRoute("/api/checkout/status")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const url = new URL(request.url);
-        const checkoutId = url.searchParams.get("id");
+        return withApiRouteTelemetry(
+          request,
+          {
+            route: "/api/checkout/status",
+            fallbackMessage: "Failed to fetch checkout status",
+          },
+          async () => {
+            const url = new URL(request.url);
+            const checkoutId = url.searchParams.get("id");
 
-        if (!checkoutId) {
-          return Response.json({ error: "Missing checkout ID" }, { status: 400 });
-        }
+            if (!checkoutId) {
+              return errorJson("Missing checkout ID", 400);
+            }
 
-        try {
-          const checkout = await polarClient.checkouts.get({ id: checkoutId });
-          return Response.json({ status: checkout.status });
-        } catch {
-          return Response.json({ error: "Failed to fetch checkout status" }, { status: 500 });
-        }
+            const checkout = await polarClient.checkouts.get({ id: checkoutId });
+            return Response.json({ status: checkout.status });
+          },
+        );
       },
     },
   },
