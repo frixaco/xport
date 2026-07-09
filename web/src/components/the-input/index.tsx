@@ -188,7 +188,7 @@ export function TheInput({ search }: { search: HomeSearch }) {
       {!isActive && (
         <div className="flex animate-in flex-col items-center gap-1.5 text-center duration-300 fade-in">
           <h1 className="text-lg font-semibold tracking-tight sm:text-xl">
-            Export Twitter/X posts
+            Export X (ex-Twitter) posts
           </h1>
           <div className="flex w-full max-w-2xl flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
             {capabilities.map(({ icon: Icon, title }) => (
@@ -226,14 +226,14 @@ export function TheInput({ search }: { search: HomeSearch }) {
         )}
         <div className="relative flex-1">
           <label htmlFor="hero-url-input" className="sr-only">
-            Twitter/X URL or username
+            X (ex-Twitter) URL or username
           </label>
           <Input
             id="hero-url-input"
             value={value}
             type="text"
             onChange={(e) => setValue(e.target.value)}
-            placeholder="Paste any Twitter/X URL or @username..."
+            placeholder="Paste any X (ex-Twitter) URL or @username..."
             className="h-12 pr-20 pl-4"
             aria-describedby={detected ? "hero-url-type" : undefined}
             autoComplete="off"

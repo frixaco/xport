@@ -1,12 +1,14 @@
 # Xport
 
-Xport exports Twitter/X posts, threads, user timelines, and articles from a web app. It also includes CLI scripts for local data extraction.
+Xport exports X (ex-Twitter) posts, threads, user timelines, and articles from a web app, with CLI scripts for local data extraction.
+
+Xport is built around resumable export jobs. A browser creates a PostgreSQL-backed job, the server runs a disposable in-process worker to fetch pages from the Social API, and each page writes progress, cursors, credits, and fetched posts back to Postgres. If the process dies or the browser reloads, the job can be resumed from its `jobId` and stored `next_cursor`.
 
 ## Features
 
 - Export threads from a tweet URL or ID.
-- Export user posts from `@username`, username, or profile URL.
-- Export Twitter/X articles from article tweet URLs.
+- Export user posts from `@`/username or profile URL.
+- Export X articles from article tweet URLs.
 - Preview fetched content and media before export.
 - Download Markdown and JSON where supported.
 - Stop long-running fetches and export partial results.
@@ -32,7 +34,7 @@ Xport exports Twitter/X posts, threads, user timelines, and articles from a web 
 
 Social API access stays server-side through `X_API_URL` and `X_API_KEY`.
 
-Fetch jobs are durable PostgreSQL rows keyed by `jobId`. The browser can create a job, poll status and tweets, request a stop, or reconnect from the same URL on another device. A background runner claims work with an internal `runner_id`, writes progress only while it owns the job, and clears `runner_id` when the job reaches `completed`, `stopped`, or `failed`.
+The main backend state machine lives in `web/src/lib/fetch-job.ts`: create, claim, fetch, store, charge, stop, resume, complete, and fail. A runner claims work with an internal `runner_id`, writes progress only while it owns the job, and clears `runner_id` when the job reaches `completed`, `stopped`, or `failed`.
 
 ## Routes
 

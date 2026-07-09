@@ -30,9 +30,9 @@ export function getSiteUrl(): string {
 }
 
 export const SITE_NAME = "Xport";
-export const SITE_TITLE = "Xport | Export Twitter and X Posts, Threads, and Articles";
+export const SITE_TITLE = "Xport | Export X (ex-Twitter) Posts, Threads, and Articles";
 export const SITE_DESCRIPTION =
-  "Export Twitter and X posts, unroll threads, and save articles online.";
+  "Export X (ex-Twitter) posts, unroll threads, and save articles online.";
 export const SITE_KEYWORDS = [
   "export twitter posts",
   "export x posts",

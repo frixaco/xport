@@ -19,10 +19,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Xport — Export Twitter/X Data" },
+      { title: "Xport — Export X (ex-Twitter) Data" },
       {
         name: "description",
-        content: "Export tweets, threads, and user posts from Twitter/X in multiple formats.",
+        content: "Export posts, threads, and user posts from X (ex-Twitter) in multiple formats.",
       },
     ],
   }),

@@ -4,13 +4,14 @@ Use pnpm.
 
 ## Product
 
-- Xport exports Twitter/X posts, threads, user timelines, and articles.
+- Xport exports X (ex-Twitter) posts, threads, user timelines, and articles.
+- Core product: resumable PostgreSQL-backed export jobs. The active worker is an in-process async runner; Postgres is the durable source of truth.
 - Main public page: `/`.
 - API routes: `/api/*`.
 - Direct-export routes `/<x.com|twitter.com>/<...>` redirect to `/` with `input=<source-url>` and auto-start export.
 - Utility redirects: `/auth-error` and `/checkout/success`.
 - Keep Social API calls server-side through API routes using `X_API_URL` and `X_API_KEY`.
-- Use both "Twitter" and "X" in user-facing copy when relevant.
+- Use `X (ex-Twitter)` in user-facing copy when referring to the platform.
 
 ## Code
 
@@ -37,7 +38,8 @@ export const Route = createFileRoute("/some-route")({
 
 - Fetch jobs are stored in `xport_fetch_jobs`; fetched posts are stored in `xport_fetch_tweets`.
 - Job URLs use `jobId` as the durable browser handle.
-- Background runners claim work with `runner_id`.
+- Background runners are started opportunistically by API requests, not by a permanent server loop.
+- Runners claim work with `runner_id`.
 - Only the current `runner_id` may update progress, charged credits, or terminal status.
 - Stale `running` jobs are reclaimable when `updated_at` is older than the runner stale window.
 - Terminal jobs must clear `runner_id`.

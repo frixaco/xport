@@ -380,7 +380,7 @@ export function useExportFlow(search: HomeSearch) {
     }
 
     if (!requestConfig) {
-      setValidationError("Invalid input. Provide a valid Twitter/X URL or @username.");
+      setValidationError("Invalid input. Provide a valid X (ex-Twitter) URL or @username.");
       return;
     }
 
