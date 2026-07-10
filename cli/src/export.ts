@@ -59,6 +59,14 @@ Examples:
 `);
 }
 
+export function printStopHelp(): void {
+  process.stdout.write(`Usage:
+  xport stop <jobId>
+
+Stops a running export job created by xport export.
+`);
+}
+
 function readOptionValue(
   args: string[],
   index: number,
@@ -155,6 +163,14 @@ function statusSummary(status: FetchJobStatusResponse): string {
   return status.error?.message ? `${base} (${status.error.message})` : base;
 }
 
+function parseStopArgs(args: string[]): string | "help" {
+  if (args.includes("--help") || args.includes("-h")) return "help";
+  const [jobId, extra] = args;
+  if (!jobId) throw new CliError("Missing job ID. Use `xport stop <jobId>`.");
+  if (extra) throw new CliError(`Unexpected extra argument: ${extra}`);
+  return jobId;
+}
+
 async function createFetchJob(
   ctx: CommandContext,
   token: string,
@@ -177,6 +193,21 @@ async function fetchJobStatus(
     ctx,
     `/api/fetch-jobs/${encodeURIComponent(jobId)}/status`,
     { token },
+  );
+}
+
+async function stopFetchJob(
+  ctx: CommandContext,
+  token: string,
+  jobId: string,
+): Promise<FetchJobStatusResponse> {
+  return requestJson<FetchJobStatusResponse>(
+    ctx,
+    `/api/fetch-jobs/${encodeURIComponent(jobId)}/stop`,
+    {
+      method: "POST",
+      token,
+    },
   );
 }
 
@@ -323,7 +354,7 @@ async function exportFetchJob(
   options: Pick<ExportOptions, "quiet">,
 ): Promise<{ result: ResultState; isPartial: boolean }> {
   const created = await createFetchJob(ctx, token, input);
-  log(options, `Created fetch job ${created.jobId}.`);
+  process.stderr.write(`Job ID: ${created.jobId}\n`);
 
   const status = await pollJob(ctx, token, created.jobId, options);
   const job: ActiveFetchJob = { jobId: created.jobId, requestType: status.requestType };
@@ -407,4 +438,20 @@ export async function commandExport(ctx: CommandContext, args: string[]): Promis
     isPartial: exported.isPartial,
   });
   await writeExport(payload, options);
+}
+
+export async function commandStop(ctx: CommandContext, args: string[]): Promise<void> {
+  const jobId = parseStopArgs(args);
+  if (jobId === "help") {
+    printStopHelp();
+    return;
+  }
+
+  const token = await requireToken(ctx);
+  let status = await stopFetchJob(ctx, token, jobId);
+  while (!isTerminalStatus(status.status)) {
+    await sleep(2000);
+    status = await fetchJobStatus(ctx, token, jobId);
+  }
+  process.stdout.write(`${statusSummary(status)}\n`);
 }

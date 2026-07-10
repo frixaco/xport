@@ -140,12 +140,13 @@ Database schema is managed with Drizzle:
 
 The supported app CLI calls the deployed/local Xport server APIs. Social API credentials stay server-side.
 
-Install from npm after publishing:
+Install from npm:
 
 ```bash
 npm install -g @frixaco/xport
 xport login
 xport export --format markdown --out . "https://x.com/burakeregar/status/2020852442230120752"
+xport stop <jobId>
 ```
 
 Prepare the npm package locally:
@@ -163,10 +164,11 @@ pn --filter @frixaco/xport xport whoami
 pn --filter @frixaco/xport xport credits
 pn --filter @frixaco/xport xport export --format markdown --out . "https://x.com/burakeregar/status/2020852442230120752"
 pn --filter @frixaco/xport xport export --format json --stdout "@frixaco"
+pn --filter @frixaco/xport xport stop <jobId>
 pn --filter @frixaco/xport xport logout
 ```
 
-CLI export options must come before the input: `xport export [options] <input>` is the only supported form. Auth uses the Better Auth device code flow; tokens are stored at `~/.config/xport/config.json` with `0600` permissions. For automation, set `XPORT_TOKEN`; for local servers, set `XPORT_BASE_URL`.
+CLI export options must come before the input: `xport export [options] <input>` is the only supported form. Thread and user exports print `Job ID: <uuid>` to stderr as soon as the resumable job is created, and `xport stop <jobId>` stops that job from another terminal. Auth uses the Better Auth device code flow; tokens are stored at `~/.config/xport/config.json` with `0600` permissions. For automation, set `XPORT_TOKEN`; for local servers, set `XPORT_BASE_URL`.
 
 Legacy local extraction scripts still read `cli/.env`; see `cli/.env.example`.
 

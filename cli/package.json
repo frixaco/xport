@@ -1,6 +1,6 @@
 {
   "name": "@frixaco/xport",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Server-backed CLI for exporting X (ex-Twitter) posts, threads, timelines, and articles.",
   "license": "MIT",
   "bin": {
