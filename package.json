@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "workspaces": [
+    "core",
     "web",
     "cli"
   ],
@@ -10,8 +11,8 @@
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
     "start": "pnpm --filter web start",
-    "lint": "pnpm --filter web lint && pnpm --filter cli lint",
-    "lint:fix": "pnpm --filter web lint:fix && pnpm --filter cli lint:fix",
+    "lint": "pnpm --filter @xport/core lint && pnpm --filter web lint && pnpm --filter @frixaco/xport lint",
+    "lint:fix": "pnpm --filter @xport/core lint:fix && pnpm --filter web lint:fix && pnpm --filter @frixaco/xport lint:fix",
     "format": "oxfmt --ignore-path .gitignore --write . '!web/src/routeTree.gen.ts'",
     "format:check": "oxfmt --ignore-path .gitignore --check . '!web/src/routeTree.gen.ts'",
     "check": "pnpm run format:check && pnpm run lint",

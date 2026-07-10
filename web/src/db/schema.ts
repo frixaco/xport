@@ -90,6 +90,29 @@ export const verification = pgTable(
   (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
 
+export const deviceCode = pgTable(
+  "device_code",
+  {
+    id: text("id").primaryKey(),
+    deviceCode: text("device_code").notNull(),
+    userCode: text("user_code").notNull(),
+    userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    status: text("status").$type<"pending" | "approved" | "denied">().notNull(),
+    lastPolledAt: timestamp("last_polled_at", { withTimezone: true, mode: "date" }),
+    pollingInterval: integer("polling_interval"),
+    clientId: text("client_id"),
+    scope: text("scope"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("device_code_device_code_uidx").on(table.deviceCode),
+    uniqueIndex("device_code_user_code_uidx").on(table.userCode),
+    index("device_code_user_id_idx").on(table.userId),
+    check("device_code_status_check", sql`${table.status} IN ('pending', 'approved', 'denied')`),
+  ],
+);
+
 export const fetchJobs = pgTable(
   "xport_fetch_jobs",
   {

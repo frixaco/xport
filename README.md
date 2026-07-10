@@ -1,6 +1,6 @@
 # Xport
 
-Xport exports X (ex-Twitter) posts, threads, user timelines, and articles from a web app, with CLI scripts for local data extraction.
+Xport exports X (ex-Twitter) posts, threads, user timelines, and articles from a web app or server-backed CLI.
 
 Xport is built around resumable export jobs. A browser creates a PostgreSQL-backed job, the server runs a disposable in-process worker to fetch pages from the Social API, and each page writes progress, cursors, credits, and fetched posts back to Postgres. If the process dies or the browser reloads, the job can be resumed from its `jobId` and stored `next_cursor`.
 
@@ -29,7 +29,8 @@ Xport is built around resumable export jobs. A browser creates a PostgreSQL-back
 - **API:** server routes under `web/src/routes/api`.
 - **Jobs:** PostgreSQL-backed fetch jobs and tweet snapshots.
 - **Billing:** better-auth and Polar credits.
-- **CLI:** Node.js/TypeScript scripts in `cli`.
+- **CLI:** no-library TypeScript CLI in `cli/src`, plus older local extraction scripts in `cli`.
+- **Shared core:** pure parsing, normalization, credit, and export-formatting helpers in `core`.
 - **Workspace:** pnpm workspaces.
 
 Social API access stays server-side through `X_API_URL` and `X_API_KEY`.
@@ -137,15 +138,45 @@ Database schema is managed with Drizzle:
 
 ## CLI
 
-CLI scripts read `cli/.env`; see `cli/.env.example`.
+The supported app CLI calls the deployed/local Xport server APIs. Social API credentials stay server-side.
+
+Install from npm after publishing:
 
 ```bash
-pn --filter cli fetch-thread -- <tweet-url-or-id>
-pn --filter cli fetch-article -- <tweet-url-or-id>
-pn --filter cli fetch-posts-by-username -- <username>
-pn --filter cli fetch-user-info -- <username>
-pn --filter cli fetch-bookmarks
-pn --filter cli exec tsx json-to-text.ts <input.json>
+npm install -g @frixaco/xport
+xport login
+xport export --format markdown --out . "https://x.com/burakeregar/status/2020852442230120752"
+```
+
+Prepare the npm package locally:
+
+```bash
+pn --filter @frixaco/xport build
+pn --filter @frixaco/xport pack --pack-destination /tmp
+```
+
+Workspace usage:
+
+```bash
+pn --filter @frixaco/xport xport login
+pn --filter @frixaco/xport xport whoami
+pn --filter @frixaco/xport xport credits
+pn --filter @frixaco/xport xport export --format markdown --out . "https://x.com/burakeregar/status/2020852442230120752"
+pn --filter @frixaco/xport xport export --format json --stdout "@frixaco"
+pn --filter @frixaco/xport xport logout
+```
+
+CLI export options must come before the input: `xport export [options] <input>` is the only supported form. Auth uses the Better Auth device code flow; tokens are stored at `~/.config/xport/config.json` with `0600` permissions. For automation, set `XPORT_TOKEN`; for local servers, set `XPORT_BASE_URL`.
+
+Legacy local extraction scripts still read `cli/.env`; see `cli/.env.example`.
+
+```bash
+pn --filter @frixaco/xport fetch-thread -- <tweet-url-or-id>
+pn --filter @frixaco/xport fetch-article -- <tweet-url-or-id>
+pn --filter @frixaco/xport fetch-posts-by-username -- <username>
+pn --filter @frixaco/xport fetch-user-info -- <username>
+pn --filter @frixaco/xport fetch-bookmarks
+pn --filter @frixaco/xport exec tsx json-to-text.ts <input.json>
 ```
 
 ## License

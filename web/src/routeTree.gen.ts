@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as DeviceRouteImport } from './routes/device'
 import { Route as AuthErrorRouteImport } from './routes/auth-error'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CheckoutSuccessRouteImport } from './routes/checkout/success'
@@ -18,12 +19,18 @@ import { Route as ApiThreadRouteImport } from './routes/api/thread'
 import { Route as ApiArticleRouteImport } from './routes/api/article'
 import { Route as SourceHostSplatRouteImport } from './routes/$sourceHost/$'
 import { Route as ApiFetchJobsSplatRouteImport } from './routes/api/fetch-jobs/$'
+import { Route as ApiCliMeRouteImport } from './routes/api/cli/me'
 import { Route as ApiCheckoutStatusRouteImport } from './routes/api/checkout/status'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiFetchJobsJobIdTweetsRouteImport } from './routes/api/fetch-jobs/$jobId/tweets'
 import { Route as ApiFetchJobsJobIdStopRouteImport } from './routes/api/fetch-jobs/$jobId/stop'
 import { Route as ApiFetchJobsJobIdStatusRouteImport } from './routes/api/fetch-jobs/$jobId/status'
 
+const DeviceRoute = DeviceRouteImport.update({
+  id: '/device',
+  path: '/device',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthErrorRoute = AuthErrorRouteImport.update({
   id: '/auth-error',
   path: '/auth-error',
@@ -69,6 +76,11 @@ const ApiFetchJobsSplatRoute = ApiFetchJobsSplatRouteImport.update({
   path: '/api/fetch-jobs/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCliMeRoute = ApiCliMeRouteImport.update({
+  id: '/api/cli/me',
+  path: '/api/cli/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCheckoutStatusRoute = ApiCheckoutStatusRouteImport.update({
   id: '/api/checkout/status',
   path: '/api/checkout/status',
@@ -98,6 +110,7 @@ const ApiFetchJobsJobIdStatusRoute = ApiFetchJobsJobIdStatusRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth-error': typeof AuthErrorRoute
+  '/device': typeof DeviceRoute
   '/$sourceHost/$': typeof SourceHostSplatRoute
   '/api/article': typeof ApiArticleRoute
   '/api/thread': typeof ApiThreadRoute
@@ -106,6 +119,7 @@ export interface FileRoutesByFullPath {
   '/checkout/success': typeof CheckoutSuccessRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/checkout/status': typeof ApiCheckoutStatusRoute
+  '/api/cli/me': typeof ApiCliMeRoute
   '/api/fetch-jobs/$': typeof ApiFetchJobsSplatRoute
   '/api/fetch-jobs/$jobId/status': typeof ApiFetchJobsJobIdStatusRoute
   '/api/fetch-jobs/$jobId/stop': typeof ApiFetchJobsJobIdStopRoute
@@ -114,6 +128,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth-error': typeof AuthErrorRoute
+  '/device': typeof DeviceRoute
   '/$sourceHost/$': typeof SourceHostSplatRoute
   '/api/article': typeof ApiArticleRoute
   '/api/thread': typeof ApiThreadRoute
@@ -122,6 +137,7 @@ export interface FileRoutesByTo {
   '/checkout/success': typeof CheckoutSuccessRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/checkout/status': typeof ApiCheckoutStatusRoute
+  '/api/cli/me': typeof ApiCliMeRoute
   '/api/fetch-jobs/$': typeof ApiFetchJobsSplatRoute
   '/api/fetch-jobs/$jobId/status': typeof ApiFetchJobsJobIdStatusRoute
   '/api/fetch-jobs/$jobId/stop': typeof ApiFetchJobsJobIdStopRoute
@@ -131,6 +147,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/auth-error': typeof AuthErrorRoute
+  '/device': typeof DeviceRoute
   '/$sourceHost/$': typeof SourceHostSplatRoute
   '/api/article': typeof ApiArticleRoute
   '/api/thread': typeof ApiThreadRoute
@@ -139,6 +156,7 @@ export interface FileRoutesById {
   '/checkout/success': typeof CheckoutSuccessRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/checkout/status': typeof ApiCheckoutStatusRoute
+  '/api/cli/me': typeof ApiCliMeRoute
   '/api/fetch-jobs/$': typeof ApiFetchJobsSplatRoute
   '/api/fetch-jobs/$jobId/status': typeof ApiFetchJobsJobIdStatusRoute
   '/api/fetch-jobs/$jobId/stop': typeof ApiFetchJobsJobIdStopRoute
@@ -149,6 +167,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth-error'
+    | '/device'
     | '/$sourceHost/$'
     | '/api/article'
     | '/api/thread'
@@ -157,6 +176,7 @@ export interface FileRouteTypes {
     | '/checkout/success'
     | '/api/auth/$'
     | '/api/checkout/status'
+    | '/api/cli/me'
     | '/api/fetch-jobs/$'
     | '/api/fetch-jobs/$jobId/status'
     | '/api/fetch-jobs/$jobId/stop'
@@ -165,6 +185,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth-error'
+    | '/device'
     | '/$sourceHost/$'
     | '/api/article'
     | '/api/thread'
@@ -173,6 +194,7 @@ export interface FileRouteTypes {
     | '/checkout/success'
     | '/api/auth/$'
     | '/api/checkout/status'
+    | '/api/cli/me'
     | '/api/fetch-jobs/$'
     | '/api/fetch-jobs/$jobId/status'
     | '/api/fetch-jobs/$jobId/stop'
@@ -181,6 +203,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/auth-error'
+    | '/device'
     | '/$sourceHost/$'
     | '/api/article'
     | '/api/thread'
@@ -189,6 +212,7 @@ export interface FileRouteTypes {
     | '/checkout/success'
     | '/api/auth/$'
     | '/api/checkout/status'
+    | '/api/cli/me'
     | '/api/fetch-jobs/$'
     | '/api/fetch-jobs/$jobId/status'
     | '/api/fetch-jobs/$jobId/stop'
@@ -198,6 +222,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthErrorRoute: typeof AuthErrorRoute
+  DeviceRoute: typeof DeviceRoute
   SourceHostSplatRoute: typeof SourceHostSplatRoute
   ApiArticleRoute: typeof ApiArticleRoute
   ApiThreadRoute: typeof ApiThreadRoute
@@ -206,6 +231,7 @@ export interface RootRouteChildren {
   CheckoutSuccessRoute: typeof CheckoutSuccessRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiCheckoutStatusRoute: typeof ApiCheckoutStatusRoute
+  ApiCliMeRoute: typeof ApiCliMeRoute
   ApiFetchJobsSplatRoute: typeof ApiFetchJobsSplatRoute
   ApiFetchJobsJobIdStatusRoute: typeof ApiFetchJobsJobIdStatusRoute
   ApiFetchJobsJobIdStopRoute: typeof ApiFetchJobsJobIdStopRoute
@@ -214,6 +240,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/device': {
+      id: '/device'
+      path: '/device'
+      fullPath: '/device'
+      preLoaderRoute: typeof DeviceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth-error': {
       id: '/auth-error'
       path: '/auth-error'
@@ -277,6 +310,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFetchJobsSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cli/me': {
+      id: '/api/cli/me'
+      path: '/api/cli/me'
+      fullPath: '/api/cli/me'
+      preLoaderRoute: typeof ApiCliMeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/checkout/status': {
       id: '/api/checkout/status'
       path: '/api/checkout/status'
@@ -318,6 +358,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthErrorRoute: AuthErrorRoute,
+  DeviceRoute: DeviceRoute,
   SourceHostSplatRoute: SourceHostSplatRoute,
   ApiArticleRoute: ApiArticleRoute,
   ApiThreadRoute: ApiThreadRoute,
@@ -326,6 +367,7 @@ const rootRouteChildren: RootRouteChildren = {
   CheckoutSuccessRoute: CheckoutSuccessRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiCheckoutStatusRoute: ApiCheckoutStatusRoute,
+  ApiCliMeRoute: ApiCliMeRoute,
   ApiFetchJobsSplatRoute: ApiFetchJobsSplatRoute,
   ApiFetchJobsJobIdStatusRoute: ApiFetchJobsJobIdStatusRoute,
   ApiFetchJobsJobIdStopRoute: ApiFetchJobsJobIdStopRoute,

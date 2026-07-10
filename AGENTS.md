@@ -65,12 +65,12 @@ pn run db:migrate
 CLI commands from repo root:
 
 ```bash
-pn --filter cli fetch-thread -- <tweet-url-or-id>
-pn --filter cli fetch-article -- <tweet-url-or-id>
-pn --filter cli fetch-posts-by-username -- <username>
-pn --filter cli fetch-user-info -- <username>
-pn --filter cli fetch-bookmarks
-pn --filter cli exec tsx json-to-text.ts <input.json>
+pn --filter @frixaco/xport fetch-thread -- <tweet-url-or-id>
+pn --filter @frixaco/xport fetch-article -- <tweet-url-or-id>
+pn --filter @frixaco/xport fetch-posts-by-username -- <username>
+pn --filter @frixaco/xport fetch-user-info -- <username>
+pn --filter @frixaco/xport fetch-bookmarks
+pn --filter @frixaco/xport exec tsx json-to-text.ts <input.json>
 ```
 
 ## Deployment

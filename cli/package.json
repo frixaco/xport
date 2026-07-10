@@ -1,9 +1,22 @@
 {
-  "name": "cli",
+  "name": "@frixaco/xport",
   "version": "0.1.0",
-  "private": true,
+  "description": "Server-backed CLI for exporting X (ex-Twitter) posts, threads, timelines, and articles.",
+  "license": "MIT",
+  "bin": {
+    "xport": "./dist/cli/src/index.js"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "xport": "tsx src/index.ts",
+    "prepack": "pnpm run build",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "check": "pnpm run format:check && pnpm run lint",
@@ -22,5 +35,8 @@
   },
   "devDependencies": {
     "tsx": "^4.22.4"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

@@ -1,5 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { bearer } from "better-auth/plugins/bearer";
+import { deviceAuthorization } from "better-auth/plugins/device-authorization";
 import { polar, checkout, portal, usage, webhooks } from "@polar-sh/better-auth";
 import type { WebhookCustomerCreatedPayload } from "@polar-sh/sdk/models/components/webhookcustomercreatedpayload";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
@@ -10,6 +12,9 @@ import { polarClient } from "./polar";
 
 const USAGE_EVENT_NAME = "usage";
 const SIGNUP_CREDIT_AMOUNT = 50;
+const CLI_CLIENT_ID = "xport-cli";
+const BETTER_AUTH_BASE_URL = process.env.BETTER_AUTH_URL?.replace(/\/+$/, "");
+const DEVICE_VERIFICATION_URI = BETTER_AUTH_BASE_URL ? `${BETTER_AUTH_BASE_URL}/device` : "/device";
 
 async function grantSignupCredits(payload: WebhookCustomerCreatedPayload): Promise<void> {
   const polarCustomerId = payload.data.id;
@@ -66,6 +71,12 @@ export const auth = betterAuth({
     errorURL: "/auth-error",
   },
   plugins: [
+    deviceAuthorization({
+      schema: {},
+      verificationUri: DEVICE_VERIFICATION_URI,
+      validateClient: (clientId) => clientId === CLI_CLIENT_ID,
+    }),
+    bearer(),
     polar({
       client: polarClient,
       createCustomerOnSignUp: true,
