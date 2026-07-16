@@ -3,13 +3,15 @@ import { access, mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import {
+  buildFetchJobResult,
   buildRequestConfig,
   detectUrlType,
-  extractUsernameFromTweetCard,
   getDownloadPayload,
+  hasExportablePosts,
+  isTerminalFetchJobStatus,
   normalizeResult,
   normalizeTweetCards,
-  parseTwitterInput,
+  parseUsername,
   type FetchJobRequestType,
   type FetchJobResumeResponse,
   type FetchJobStatusResponse,
@@ -42,7 +44,7 @@ interface JobTweetPage {
   total: number;
 }
 
-export function printExportHelp(): void {
+function printExportHelp(): void {
   process.stdout.write(`Usage:
   xport export [options] <input>
 
@@ -59,7 +61,7 @@ Examples:
 `);
 }
 
-export function printStopHelp(): void {
+function printStopHelp(): void {
   process.stdout.write(`Usage:
   xport stop <jobId>
 
@@ -152,10 +154,6 @@ function parseExportArgs(args: string[]): ExportOptions | "help" {
 
   if (!input) throw new CliError("Missing input. Use `xport export [options] <input>`.");
   return { format, input, out, quiet, stdout };
-}
-
-function isTerminalStatus(status: string): boolean {
-  return status === "completed" || status === "stopped" || status === "failed";
 }
 
 function statusSummary(status: FetchJobStatusResponse): string {
@@ -270,50 +268,6 @@ async function fetchAllTweets(
   return { tweets, mainTweet };
 }
 
-function buildJobResult(
-  requestType: FetchJobRequestType,
-  tweets: TweetCardModel[],
-  mainTweet: TweetCardModel | null,
-  jobStatus: FetchJobStatusResponse,
-  sourceUsername: string | null,
-): ResultState {
-  const usage = {
-    charged: jobStatus.chargedCredits > 0,
-    chargedCredits: jobStatus.chargedCredits,
-    tweetCount: jobStatus.storedTweets,
-  };
-  const username =
-    sourceUsername ??
-    extractUsernameFromTweetCard(mainTweet) ??
-    extractUsernameFromTweetCard(tweets[0]);
-
-  if (requestType === "thread") {
-    const threadTweets = mainTweet ? tweets.filter((tweet) => tweet.id !== mainTweet.id) : tweets;
-    return {
-      kind: "thread",
-      mainTweet,
-      tweets: threadTweets,
-      username,
-      label: "Thread posts",
-      usage,
-    };
-  }
-
-  return {
-    kind: "user-tweets",
-    tweets: mainTweet ? [mainTweet, ...tweets] : tweets,
-    username,
-    label: "User posts",
-    usage,
-  };
-}
-
-function hasExportablePosts(result: ResultState): boolean {
-  if (result.kind === "thread") return Boolean(result.mainTweet) || result.tweets.length > 0;
-  if (result.kind === "user-tweets") return result.tweets.length > 0;
-  return false;
-}
-
 async function pollJob(
   ctx: CommandContext,
   token: string,
@@ -329,7 +283,7 @@ async function pollJob(
       log(options, summary);
       previousSummary = summary;
     }
-    if (isTerminalStatus(status.status)) return status;
+    if (isTerminalFetchJobStatus(status.status)) return status;
     await sleep(2000);
   }
 }
@@ -359,10 +313,8 @@ async function exportFetchJob(
   const status = await pollJob(ctx, token, created.jobId, options);
   const job: ActiveFetchJob = { jobId: created.jobId, requestType: status.requestType };
   const { tweets, mainTweet } = await fetchAllTweets(ctx, token, job, status);
-  const parsed = parseTwitterInput(status.inputRaw);
-  const sourceUsername =
-    parsed?.type === "tweet" ? (parsed.username ?? null) : (parsed?.username ?? null);
-  const result = buildJobResult(status.requestType, tweets, mainTweet, status, sourceUsername);
+  const sourceUsername = parseUsername(status.inputRaw);
+  const result = buildFetchJobResult(status.requestType, tweets, mainTweet, status, sourceUsername);
   const isPartial =
     status.status === "stopped" || (status.status === "failed" && hasExportablePosts(result));
 
@@ -449,7 +401,7 @@ export async function commandStop(ctx: CommandContext, args: string[]): Promise<
 
   const token = await requireToken(ctx);
   let status = await stopFetchJob(ctx, token, jobId);
-  while (!isTerminalStatus(status.status)) {
+  while (!isTerminalFetchJobStatus(status.status)) {
     await sleep(2000);
     status = await fetchJobStatus(ctx, token, jobId);
   }

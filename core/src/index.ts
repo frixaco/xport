@@ -55,3 +55,8 @@ export {
   TWEETS_PER_CREDIT,
   withUsageMetadata,
 } from "./credits.ts";
+export {
+  buildFetchJobResult,
+  hasExportablePosts,
+  isTerminalFetchJobStatus,
+} from "./fetch-job-result.ts";

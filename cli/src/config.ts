@@ -68,7 +68,7 @@ export async function writeStoredToken(
   });
 }
 
-export async function getStoredToken(ctx: CommandContext): Promise<string | null> {
+async function getStoredToken(ctx: CommandContext): Promise<string | null> {
   const envToken = process.env.XPORT_TOKEN?.trim();
   if (envToken) return envToken;
 

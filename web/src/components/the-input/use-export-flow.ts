@@ -16,8 +16,12 @@ import type {
   TweetCardModel,
 } from "./types";
 import { buildRequestConfig, detectUrlType } from "./input";
-import { hasRenderableContent } from "./result-normalization";
-import { extractUsernameFromTweetCard } from "./tweet-card";
+import {
+  buildFetchJobResult,
+  hasExportablePosts,
+  hasRenderableContent,
+  isTerminalFetchJobStatus,
+} from "./result-normalization";
 import {
   downloadActions,
   getDownloadPayload,
@@ -34,54 +38,6 @@ interface ActiveJob {
   requestType: FetchJobRequestType;
   inputNormalized: string | null;
   sourceUsername: string | null;
-}
-
-function isTerminalStatus(status: string): boolean {
-  return status === "completed" || status === "stopped" || status === "failed";
-}
-
-function buildJobResult(
-  requestType: FetchJobRequestType,
-  tweets: TweetCardModel[],
-  mainTweet: TweetCardModel | null,
-  jobStatus: FetchJobStatusResponse,
-  sourceUsername: string | null,
-): ResultState {
-  const usage = {
-    charged: jobStatus.chargedCredits > 0,
-    chargedCredits: jobStatus.chargedCredits,
-    tweetCount: jobStatus.storedTweets,
-  };
-  const username =
-    sourceUsername ??
-    extractUsernameFromTweetCard(mainTweet) ??
-    extractUsernameFromTweetCard(tweets[0]);
-
-  if (requestType === "thread") {
-    const threadTweets = mainTweet ? tweets.filter((tweet) => tweet.id !== mainTweet.id) : tweets;
-    return {
-      kind: "thread",
-      mainTweet,
-      tweets: threadTweets,
-      username,
-      label: "Thread posts",
-      usage,
-    };
-  }
-
-  return {
-    kind: "user-tweets",
-    tweets: mainTweet ? [mainTweet, ...tweets] : tweets,
-    username,
-    label: "User posts",
-    usage,
-  };
-}
-
-function hasExportablePosts(result: ResultState): boolean {
-  if (result.kind === "thread") return Boolean(result.mainTweet) || result.tweets.length > 0;
-  if (result.kind === "user-tweets") return result.tweets.length > 0;
-  return false;
 }
 
 function getUniqueTweets(pages: JobTweetPage[]): TweetCardModel[] {
@@ -120,8 +76,7 @@ function createActiveJobFromInput(jobId: string, input: string): ActiveJob {
     jobId,
     requestType: parsed?.type === "tweet" ? "thread" : "user",
     inputNormalized: parsed?.type === "tweet" ? parsed.tweetId : (parsed?.username ?? null),
-    sourceUsername:
-      parsed?.type === "tweet" ? (parsed.username ?? null) : (parsed?.username ?? null),
+    sourceUsername: parsed?.username ?? null,
   };
 }
 
@@ -273,14 +228,15 @@ export function useExportFlow(search: HomeSearch) {
     enabled: Boolean(activeJob),
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      return status && isTerminalStatus(status) ? false : POLL_INTERVAL_MS;
+      return status && isTerminalFetchJobStatus(status) ? false : POLL_INTERVAL_MS;
     },
   });
   const jobStatus = jobStatusQuery.data ?? null;
   const jobTweetsQuery = useInfiniteQuery({
     ...fetchJobQueries.tweets(activeJob),
     enabled: Boolean(activeJob),
-    refetchInterval: jobStatus && !isTerminalStatus(jobStatus.status) ? POLL_INTERVAL_MS : false,
+    refetchInterval:
+      jobStatus && !isTerminalFetchJobStatus(jobStatus.status) ? POLL_INTERVAL_MS : false,
   });
   const stopJobMutation = useMutation({
     mutationFn: stopFetchJob,
@@ -306,14 +262,14 @@ export function useExportFlow(search: HomeSearch) {
   const isLoading =
     articleMutation.isPending || createJobMutation.isPending || resumeJobMutation.isPending;
   const isStopping = stopJobMutation.isPending;
-  const isJobActive = Boolean(jobStatus && !isTerminalStatus(jobStatus.status));
+  const isJobActive = Boolean(jobStatus && !isTerminalFetchJobStatus(jobStatus.status));
   const isStopRequested = Boolean(isJobActive && (isStopping || jobStatus?.stopRequested));
   const jobPages = jobTweetsQuery.data?.pages ?? [];
   const jobTweets = getUniqueTweets(jobPages);
   const jobMainTweet = jobPages.find((page) => page.mainTweet)?.mainTweet ?? null;
   const jobResult =
     activeJob && jobStatus
-      ? buildJobResult(
+      ? buildFetchJobResult(
           activeJob.requestType,
           jobTweets,
           jobMainTweet,
@@ -450,7 +406,7 @@ export function useExportFlow(search: HomeSearch) {
       fetchJobQueries.export(activeJob, jobStatus),
     );
 
-    return buildJobResult(
+    return buildFetchJobResult(
       activeJob.requestType,
       tweets,
       mainTweet,
@@ -567,7 +523,7 @@ export function useExportFlow(search: HomeSearch) {
       : downloadActions;
   const showCopyAction = Boolean(displayedResult);
   const showExportActions =
-    !isLoading && displayedResult && (!jobStatus || isTerminalStatus(jobStatus.status));
+    !isLoading && displayedResult && (!jobStatus || isTerminalFetchJobStatus(jobStatus.status));
   const canLoadMore = Boolean(jobTweetsQuery.hasNextPage);
 
   return {

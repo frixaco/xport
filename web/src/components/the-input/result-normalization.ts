@@ -1,1 +1,8 @@
-export { extractErrorMessage, hasRenderableContent, normalizeResult } from "@xport/core";
+export {
+  buildFetchJobResult,
+  extractErrorMessage,
+  hasExportablePosts,
+  hasRenderableContent,
+  isTerminalFetchJobStatus,
+  normalizeResult,
+} from "@xport/core";
