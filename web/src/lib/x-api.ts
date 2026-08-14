@@ -250,14 +250,14 @@ export async function fetchThreadContext(
   return xApiGet<XThreadResponse>("/twitter/tweet/thread_context", { tweetId, cursor }, { apiKey });
 }
 
-export async function fetchUserLastTweets(
-  userName: string,
+export async function fetchUserTimeline(
+  userId: string,
   cursor?: string,
   apiKey?: string,
 ): Promise<XUserTweetsResponse> {
   return xApiGet<XUserTweetsResponse>(
-    "/twitter/user/last_tweets",
-    { userName, cursor },
+    "/twitter/user/tweet_timeline",
+    { userId, cursor },
     { apiKey },
   );
 }

@@ -2,7 +2,13 @@ import { randomUUID } from "node:crypto";
 import { and, asc, count, eq, inArray, sql } from "drizzle-orm";
 import { fetchJobs, fetchTweets } from "@/db/schema";
 import { db } from "@/lib/db";
-import { fetchThreadContext, fetchUserLastTweets, XApiError, type XPost } from "@/lib/x-api";
+import {
+  fetchThreadContext,
+  fetchUserInfo,
+  fetchUserTimeline,
+  XApiError,
+  type XPost,
+} from "@/lib/x-api";
 import { ingestCreditsUsage } from "@/lib/billing-access";
 import { captureServerEvent, captureServerException } from "@/lib/server-telemetry";
 
@@ -314,6 +320,12 @@ async function runFetchLoop(jobId: string, authHeaders: Headers): Promise<void> 
   const isThread = job.requestType === "thread";
 
   try {
+    let userId: string | undefined;
+    if (!isThread) {
+      const userInfo = await fetchWithRetry(() => fetchUserInfo(job.inputNormalized));
+      userId = userInfo.data.id;
+    }
+
     while (true) {
       if (await isStopRequested(jobId)) {
         await finishJob(jobId, runnerId, "stopped");
@@ -349,9 +361,7 @@ async function runFetchLoop(jobId: string, authHeaders: Headers): Promise<void> 
         nextCursor = response.next_cursor;
       } else {
         // TODO: support includeReplies toggle
-        const response = await fetchWithRetry(() =>
-          fetchUserLastTweets(job.inputNormalized, cursor),
-        );
+        const response = await fetchWithRetry(() => fetchUserTimeline(userId!, cursor));
         tweets = response.data?.tweets ?? [];
         hasNextPage = response.has_next_page;
         nextCursor = response.next_cursor;

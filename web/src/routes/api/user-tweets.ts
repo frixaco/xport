@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { fetchUserLastTweets } from "@/lib/x-api";
+import { fetchUserInfo, fetchUserTimeline } from "@/lib/x-api";
 import { parseUsername } from "@/lib/url-parser";
 import { assertSufficientCredits } from "@/lib/billing-access";
 import { calculateTweetListCredits, MIN_PREFLIGHT_CREDITS } from "@/lib/credits";
@@ -45,7 +45,8 @@ export const Route = createFileRoute("/api/user-tweets")({
             const includeReplies = parseBooleanSearchParam(url.searchParams.get("includeReplies"));
             const cursor = url.searchParams.get("cursor") ?? undefined;
             await assertSufficientCredits(request, MIN_PREFLIGHT_CREDITS);
-            const data = await fetchUserLastTweets(userName, cursor);
+            const userInfo = await fetchUserInfo(userName);
+            const data = await fetchUserTimeline(userInfo.data.id, cursor);
             const tweetCount = Array.isArray(data.data?.tweets) ? data.data.tweets.length : 0;
             const chargedCredits = calculateTweetListCredits(tweetCount);
 

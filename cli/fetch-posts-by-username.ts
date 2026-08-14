@@ -4,7 +4,8 @@ const X_API_KEY = process.env.X_API_KEY;
 const X_API_URL = process.env.X_API_URL;
 if (!X_API_KEY) throw new Error("X_API_KEY environment variable is required");
 if (!X_API_URL) throw new Error("X_API_URL environment variable is required");
-const baseUrl = X_API_URL + "/twitter/user/last_tweets";
+const baseUrl = X_API_URL + "/twitter/user/tweet_timeline";
+const infoUrl = X_API_URL + "/twitter/user/info";
 
 const userName = process.argv[2];
 if (!userName || userName.startsWith("-")) {
@@ -76,9 +77,30 @@ interface ExtractedPost {
 
 const includeReplies = process.argv.includes("--include-replies");
 
+let userId: string;
+
+async function resolveUserId(): Promise<string> {
+  const url = new URL(infoUrl);
+  url.searchParams.set("userName", userName);
+
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    headers: { "X-API-Key": X_API_KEY },
+  });
+
+  const json = (await response.json()) as any;
+
+  if (!response.ok || !json.data?.id) {
+    console.error("API Response:", JSON.stringify(json, null, 2));
+    throw new Error(`Could not resolve user id for @${userName}`);
+  }
+
+  return json.data.id;
+}
+
 async function fetchTweets(cursor: string = ""): Promise<ApiResponse> {
   const url = new URL(baseUrl);
-  url.searchParams.set("userName", userName);
+  url.searchParams.set("userId", userId);
   if (cursor) url.searchParams.set("cursor", cursor);
   if (includeReplies) url.searchParams.set("includeReplies", "true");
 
@@ -138,6 +160,8 @@ async function main() {
   const existingIds = new Set(existingPosts.map((p) => p.id).filter(Boolean));
   const lastExistingPost = existingPosts.at(-1) ?? null;
   const lastExistingDate = lastExistingPost ? parseTwitterDate(lastExistingPost.date) : null;
+
+  userId = await resolveUserId();
 
   if (lastExistingDate && lastExistingPost) {
     console.log(`Existing posts found. Last post date: ${lastExistingPost.date}`);
