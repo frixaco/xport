@@ -174,6 +174,19 @@ export function normalizeTweetCards(tweets: unknown[]): TweetCardModel[] {
     mediaFromText.forEach((item) => addUniqueMedia(media, item));
     const text = stripMediaUrls(rawText, media);
     const fallbackText = media.length > 0 ? "[media]" : "[no text]";
+    const replyToId = isNonEmptyString(tweet.inReplyToId) ? tweet.inReplyToId : null;
+    const replyToUsername = isNonEmptyString(tweet.inReplyToUsername)
+      ? tweet.inReplyToUsername
+      : null;
+    const replyTo = replyToId
+      ? {
+          id: replyToId,
+          username: replyToUsername,
+          url: replyToUsername
+            ? `https://x.com/${replyToUsername}/status/${replyToId}`
+            : `https://x.com/i/status/${replyToId}`,
+        }
+      : null;
 
     rows.push({
       id,
@@ -181,6 +194,7 @@ export function normalizeTweetCards(tweets: unknown[]): TweetCardModel[] {
       meta,
       url,
       media,
+      replyTo,
     });
     return rows;
   }, []);

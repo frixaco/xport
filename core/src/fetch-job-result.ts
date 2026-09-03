@@ -40,9 +40,15 @@ export function buildFetchJobResult(
 
   return {
     kind: "user-tweets",
+    mode: requestType === "timeline" ? "timeline" : requestType === "replies" ? "replies" : "posts",
     tweets: mainTweet ? [mainTweet, ...tweets] : tweets,
     username,
-    label: "User posts",
+    label:
+      requestType === "timeline"
+        ? "User timeline"
+        : requestType === "replies"
+          ? "User replies"
+          : "User posts",
     usage,
   };
 }

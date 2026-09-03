@@ -21,6 +21,11 @@ export interface TweetCardModel {
   meta: string;
   url?: string;
   media: MediaItem[];
+  replyTo: {
+    id: string;
+    username: string | null;
+    url: string;
+  } | null;
 }
 
 export interface UsageMetadata {
@@ -40,6 +45,7 @@ export interface ThreadResultState {
 
 export interface UserTweetsResultState {
   kind: "user-tweets";
+  mode: AccountExportMode;
   tweets: TweetCardModel[];
   username: string | null;
   label: string;
@@ -73,7 +79,9 @@ export type ResultState = ThreadResultState | UserTweetsResultState | ArticleRes
 
 export type FetchJobStatus = "running" | "queued" | "completed" | "stopped" | "failed";
 
-export type FetchJobRequestType = "thread" | "user";
+export type AccountExportMode = "posts" | "timeline" | "replies";
+
+export type FetchJobRequestType = "thread" | "user" | "timeline" | "replies";
 
 export interface FetchJobStatusResponse {
   status: FetchJobStatus;

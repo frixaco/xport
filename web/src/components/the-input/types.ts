@@ -1,4 +1,5 @@
 export type {
+  AccountExportMode,
   ContentBlock,
   DetectedType,
   FetchJobRequestType,

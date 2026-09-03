@@ -1,4 +1,5 @@
 import type {
+  AccountExportMode,
   FetchJobRequestType,
   FetchJobResumeResponse,
   FetchJobStatusResponse,
@@ -13,6 +14,11 @@ const EXPORT_FETCH_PAGE_SIZE = 100;
 export interface ActiveFetchJob {
   jobId: string;
   requestType: FetchJobRequestType;
+}
+
+export interface CreateFetchJobInput {
+  input: string;
+  mode?: AccountExportMode;
 }
 
 export interface JobTweetPage {
@@ -38,11 +44,11 @@ export async function fetchArticleResult(input: string): Promise<ResultState> {
   return normalizeResult(payload, "article", input);
 }
 
-export async function createFetchJob(input: string): Promise<{ jobId: string }> {
+export async function createFetchJob(request: CreateFetchJobInput): Promise<{ jobId: string }> {
   return fetchJson<{ jobId: string }>("/api/fetch-jobs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input }),
+    body: JSON.stringify(request),
   });
 }
 

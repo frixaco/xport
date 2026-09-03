@@ -51,6 +51,8 @@ export interface XPost {
   bookmarkCount?: number;
   isReply?: boolean;
   inReplyToId?: string;
+  inReplyToUserId?: string;
+  inReplyToUsername?: string;
   conversationId?: string;
   author: XAuthor;
   extendedEntities?: {
@@ -253,12 +255,17 @@ export async function fetchThreadContext(
 export async function fetchUserTimeline(
   userId: string,
   cursor?: string,
-  apiKey?: string,
+  options?: { includeReplies?: boolean; apiKey?: string },
 ): Promise<XUserTweetsResponse> {
   return xApiGet<XUserTweetsResponse>(
     "/twitter/user/tweet_timeline",
-    { userId, cursor },
-    { apiKey },
+    {
+      userId,
+      cursor,
+      includeReplies: options?.includeReplies ?? false,
+      includeParentTweet: false,
+    },
+    { apiKey: options?.apiKey },
   );
 }
 

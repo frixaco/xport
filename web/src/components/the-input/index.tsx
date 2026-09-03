@@ -285,7 +285,7 @@ export function TheInput({ search }: { search: HomeSearch }) {
           ) : (
             <>
               <span>{jobStatus?.pagesFetched ?? 0} pages</span>
-              <span>{jobStatus?.storedTweets ?? 0} tweets</span>
+              <span>{formatCount(jobStatus?.storedTweets ?? 0, "item")}</span>
               {Boolean(jobStatus?.chargedCredits) && (
                 <span>{formatCreditLabel(jobStatus?.chargedCredits ?? 0)}</span>
               )}

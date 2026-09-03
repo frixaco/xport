@@ -13,7 +13,7 @@ import { ingestCreditsUsage } from "@/lib/billing-access";
 import { captureServerEvent, captureServerException } from "@/lib/server-telemetry";
 
 type FetchJobStatus = "queued" | "running" | "completed" | "stopped" | "failed";
-export type FetchJobRequestType = "thread" | "user";
+export type FetchJobRequestType = "thread" | "user" | "timeline" | "replies";
 const ACTIVE_FETCH_JOB_STATUSES: FetchJobStatus[] = ["queued", "running"];
 
 export type FetchJobRow = typeof fetchJobs.$inferSelect;
@@ -349,6 +349,7 @@ async function runFetchLoop(jobId: string, authHeaders: Headers): Promise<void> 
       }
 
       let tweets: XPost[];
+      let rawPageTweetCount: number;
       let hasNextPage: boolean;
       let nextCursor: string | undefined;
 
@@ -357,12 +358,29 @@ async function runFetchLoop(jobId: string, authHeaders: Headers): Promise<void> 
           fetchThreadContext(job.inputNormalized, cursor),
         );
         tweets = response.tweets ?? [];
+        rawPageTweetCount = tweets.length;
         hasNextPage = response.has_next_page;
         nextCursor = response.next_cursor;
       } else {
-        // TODO: support includeReplies toggle
-        const response = await fetchWithRetry(() => fetchUserTimeline(userId!, cursor));
-        tweets = response.data?.tweets ?? [];
+        const response = await fetchWithRetry(() =>
+          fetchUserTimeline(userId!, cursor, {
+            includeReplies: job.requestType !== "user",
+          }),
+        );
+        const responseTweets = response.data?.tweets ?? [];
+        rawPageTweetCount = responseTweets.length;
+        if (job.requestType === "replies") {
+          tweets = responseTweets.filter((tweet) => {
+            return (
+              tweet.author.userName.toLowerCase() === job.inputNormalized.toLowerCase() &&
+              Boolean(tweet.isReply || tweet.inReplyToId)
+            );
+          });
+        } else if (job.requestType === "user") {
+          tweets = responseTweets.filter((tweet) => !(tweet.isReply || tweet.inReplyToId));
+        } else {
+          tweets = responseTweets;
+        }
         hasNextPage = response.has_next_page;
         nextCursor = response.next_cursor;
       }
@@ -375,7 +393,7 @@ async function runFetchLoop(jobId: string, authHeaders: Headers): Promise<void> 
       }
 
       pagesFetched++;
-      rawFetchedTweets += tweets.length;
+      rawFetchedTweets += rawPageTweetCount;
 
       await insertTweets(jobId, tweets, pagesFetched, isThread ? job.inputNormalized : null);
 
@@ -401,7 +419,7 @@ async function runFetchLoop(jobId: string, authHeaders: Headers): Promise<void> 
         if (!(await updateJobChargedCredits(jobId, runnerId, chargedCredits))) return;
       }
 
-      if (!hasNextPage || !nextCursor || tweets.length === 0) {
+      if (!hasNextPage || !nextCursor || rawPageTweetCount === 0) {
         await finishJob(jobId, runnerId, "completed");
         return;
       }

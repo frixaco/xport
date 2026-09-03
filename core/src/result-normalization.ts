@@ -80,6 +80,7 @@ export function normalizeResult(
 
     return {
       kind: "user-tweets",
+      mode: "posts",
       tweets: [],
       username: sourceUsername,
       label: "User posts",
@@ -106,6 +107,7 @@ export function normalizeResult(
     const normalizedTweets = normalizeTweetCards(tweets);
     return {
       kind: "user-tweets",
+      mode: "posts",
       tweets: normalizedTweets,
       username: extractUsernameFromTweetCard(normalizedTweets[0]) ?? sourceUsername,
       label: "User posts",

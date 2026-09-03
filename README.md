@@ -7,7 +7,7 @@ Xport is built around resumable export jobs. A browser creates a PostgreSQL-back
 ## Features
 
 - Export threads from a tweet URL or ID.
-- Export user posts from `@`/username or profile URL.
+- Export user posts and replies from `@`/username or profile URL.
 - Export X articles from article tweet URLs.
 - Preview fetched content and media before export.
 - Download Markdown and JSON where supported.
@@ -46,12 +46,13 @@ The main backend state machine lives in `web/src/lib/fetch-job.ts`: create, clai
 
 ## Exports
 
-| Source     | Formats        | Filename                         |
-| ---------- | -------------- | -------------------------------- |
-| Thread     | Markdown, JSON | `<username>-thread.<ext>`        |
-| User posts | Markdown, JSON | `<username>-user-posts.<ext>`    |
-| Partial    | Markdown, JSON | Adds `-partial` before extension |
-| Article    | Markdown       | `<sanitized-article-title>.md`   |
+| Source        | Formats        | Filename                         |
+| ------------- | -------------- | -------------------------------- |
+| Thread        | Markdown, JSON | `<username>-thread.<ext>`        |
+| User timeline | Markdown, JSON | `<username>-user-posts.<ext>`    |
+| User replies  | Markdown, JSON | `<username>-replies.<ext>`       |
+| Partial       | Markdown, JSON | Adds `-partial` before extension |
+| Article       | Markdown       | `<sanitized-article-title>.md`   |
 
 ## Local Development
 
@@ -146,6 +147,8 @@ Install from npm:
 npm install -g @frixaco/xport
 xport login
 xport export --format markdown --out . "https://x.com/burakeregar/status/2020852442230120752"
+xport posts --format markdown --out . "@frixaco"
+xport replies --format markdown --out . "@frixaco"
 xport stop <jobId>
 ```
 
@@ -164,6 +167,8 @@ pn --filter @frixaco/xport xport whoami
 pn --filter @frixaco/xport xport credits
 pn --filter @frixaco/xport xport export --format markdown --out . "https://x.com/burakeregar/status/2020852442230120752"
 pn --filter @frixaco/xport xport export --format json --stdout "@frixaco"
+pn --filter @frixaco/xport xport posts --format markdown --out . "@frixaco"
+pn --filter @frixaco/xport xport replies --format json --stdout "@frixaco"
 pn --filter @frixaco/xport xport stop <jobId>
 pn --filter @frixaco/xport xport logout
 ```

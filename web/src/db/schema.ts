@@ -120,7 +120,7 @@ export const fetchJobs = pgTable(
     ownerUserId: text("owner_user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    requestType: text("request_type").$type<"thread" | "user">().notNull(),
+    requestType: text("request_type").$type<"thread" | "user" | "timeline" | "replies">().notNull(),
     inputRaw: text("input_raw").notNull(),
     inputNormalized: text("input_normalized").notNull(),
     status: text("status")
@@ -145,7 +145,10 @@ export const fetchJobs = pgTable(
   (table) => [
     index("fetch_jobs_owner_user_id_idx").on(table.ownerUserId),
     index("fetch_jobs_status_idx").on(table.status),
-    check("fetch_jobs_request_type_check", sql`${table.requestType} IN ('thread', 'user')`),
+    check(
+      "fetch_jobs_request_type_check",
+      sql`${table.requestType} IN ('thread', 'user', 'timeline', 'replies')`,
+    ),
     check(
       "fetch_jobs_status_check",
       sql`${table.status} IN ('queued', 'running', 'completed', 'stopped', 'failed')`,

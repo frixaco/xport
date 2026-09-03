@@ -61,7 +61,7 @@ function todayIsoDate(): string {
 function getTweetRows(result: TweetResult): TweetRow[] {
   if (result.kind === "user-tweets") {
     return result.tweets.map((tweet, index) => ({
-      role: "post",
+      role: tweet.replyTo ? "reply" : "post",
       index: index + 1,
       tweet,
     }));
@@ -91,6 +91,12 @@ function tweetHeading(row: TweetRow): string {
         ? `Reply ${row.index}`
         : `Post ${row.index}`;
   return `## ${heading}`;
+}
+
+function replyParentLine(tweet: TweetCardModel): string | null {
+  if (!tweet.replyTo) return null;
+  const label = tweet.replyTo.username ? `@${tweet.replyTo.username}'s post` : "Parent post";
+  return `> Reply to [${label}](${tweet.replyTo.url})`;
 }
 
 function threadTitleFromFirstPost(text: string): string {
@@ -187,6 +193,8 @@ function toTweetMarkdown(result: TweetResult): string {
     lines.push(
       joinNonEmpty([row.tweet.meta, row.tweet.url ? `[Open on X](${row.tweet.url})` : null]),
     );
+    const parentLine = row.role === "reply" ? replyParentLine(row.tweet) : null;
+    if (parentLine) lines.push(parentLine);
     lines.push(row.tweet.text);
     if (row.tweet.media.length > 0) {
       lines.push("Media:");
@@ -245,7 +253,9 @@ function fileBaseName(result: ResultState, options?: { isPartial?: boolean }): s
     return `${usernamePrefix}-thread${partialSuffix}`;
   }
 
-  return `${usernamePrefix}-user-posts${partialSuffix}`;
+  return result.mode === "replies"
+    ? `${usernamePrefix}-replies${partialSuffix}`
+    : `${usernamePrefix}-user-posts${partialSuffix}`;
 }
 
 export function getDownloadPayload(

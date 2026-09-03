@@ -5,7 +5,7 @@ import { usePostHog } from "@posthog/react";
 import { toast } from "sonner";
 import { parseTwitterInput, parseUsername } from "@/lib/url-parser";
 import { createFetchJob, fetchArticleResult, fetchJobStatus, stopFetchJob } from "./api";
-import type { JobTweetPage } from "./api";
+import type { CreateFetchJobInput, JobTweetPage } from "./api";
 import { fetchJobQueries, fetchJobQueryKeys } from "./queries";
 import { isValidJobId, type HomeSearch, withoutEmptySearchValues } from "./search";
 import type {
@@ -69,12 +69,12 @@ function createActiveJobFromResume(jobId: string, payload: FetchJobResumeRespons
   };
 }
 
-function createActiveJobFromInput(jobId: string, input: string): ActiveJob {
-  const parsed = parseTwitterInput(input);
+function createActiveJobFromInput(jobId: string, request: CreateFetchJobInput): ActiveJob {
+  const parsed = parseTwitterInput(request.input);
 
   return {
     jobId,
-    requestType: parsed?.type === "tweet" ? "thread" : "user",
+    requestType: parsed?.type === "tweet" ? "thread" : "timeline",
     inputNormalized: parsed?.type === "tweet" ? parsed.tweetId : (parsed?.username ?? null),
     sourceUsername: parsed?.username ?? null,
   };
@@ -353,7 +353,10 @@ export function useExportFlow(search: HomeSearch) {
       return;
     }
 
-    createJobMutation.mutate(trimmed);
+    createJobMutation.mutate({
+      input: trimmed,
+      mode: parsedInput?.type === "user" ? "timeline" : undefined,
+    });
   }
 
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {

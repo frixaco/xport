@@ -1,0 +1,2 @@
+ALTER TABLE "xport_fetch_jobs" DROP CONSTRAINT "fetch_jobs_request_type_check";--> statement-breakpoint
+ALTER TABLE "xport_fetch_jobs" ADD CONSTRAINT "fetch_jobs_request_type_check" CHECK ("xport_fetch_jobs"."request_type" IN ('thread', 'user', 'timeline', 'replies'));

@@ -1,4 +1,5 @@
 export type {
+  AccountExportMode,
   ArticleResultState,
   ContentBlock,
   DetectedType,

@@ -20,7 +20,15 @@ function usageSummaryLabel(result: ResultState): string {
 function resultHeaderLabel(result: ResultState, isFetchingEmpty = false): string {
   if (result.kind === "article") return "Article";
   if (isFetchingEmpty) return result.kind === "thread" ? "Fetching thread" : "Fetching posts";
-  if (result.kind === "user-tweets") return `Fetched ${formatCount(result.tweets.length, "post")}`;
+  if (result.kind === "user-tweets") {
+    const replies = result.tweets.filter((tweet) => tweet.replyTo).length;
+    const posts = result.tweets.length - replies;
+    if (result.mode === "replies") return `Fetched ${formatCount(replies, "reply")}`;
+    if (result.mode === "timeline" && replies > 0) {
+      return `Fetched ${formatCount(posts, "post")} and ${formatCount(replies, "reply")}`;
+    }
+    return `Fetched ${formatCount(posts, "post")}`;
+  }
 
   const replies = result.tweets.length;
   if (result.mainTweet && replies > 0) {
@@ -137,6 +145,8 @@ function TweetRowCard({
   tag?: string;
   index?: number;
 }) {
+  const displayTag = tag ?? (tweet.replyTo ? "Reply" : undefined);
+
   return (
     <article
       className={cn(
@@ -148,8 +158,10 @@ function TweetRowCard({
         {typeof index === "number" && (
           <Chip className="px-1.5 text-[10px] font-medium text-muted-foreground">{index}</Chip>
         )}
-        {tag && (
-          <Chip className="text-[10px] tracking-wide text-muted-foreground uppercase">{tag}</Chip>
+        {displayTag && (
+          <Chip className="text-[10px] tracking-wide text-muted-foreground uppercase">
+            {displayTag}
+          </Chip>
         )}
         <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{tweet.meta}</span>
         {tweet.url && (
@@ -164,6 +176,16 @@ function TweetRowCard({
           </a>
         )}
       </div>
+      {tweet.replyTo && (
+        <a
+          href={tweet.replyTo.url}
+          target="_blank"
+          rel="noreferrer"
+          className="w-fit text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        >
+          Replying to {tweet.replyTo.username ? `@${tweet.replyTo.username}` : "this post"}
+        </a>
+      )}
       <p className="text-sm leading-relaxed whitespace-pre-wrap">{tweet.text}</p>
       {tweet.media.length > 0 && (
         <p className="text-[11px] tracking-wide text-muted-foreground uppercase">

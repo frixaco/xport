@@ -27,7 +27,7 @@ export const Route = createFileRoute("/api/fetch-jobs/$")({
               return errorJson("Authentication required.", 401);
             }
 
-            let body: { input?: string };
+            let body: { input?: string; mode?: unknown };
             try {
               body = await request.json();
             } catch {
@@ -43,7 +43,22 @@ export const Route = createFileRoute("/api/fetch-jobs/$")({
             if (!parsed) {
               return errorJson("Invalid input. Provide a valid tweet URL/ID or username.", 400);
             }
-            const requestType: FetchJobRequestType = parsed.type === "tweet" ? "thread" : "user";
+            const mode = body.mode ?? "posts";
+            if (mode !== "posts" && mode !== "timeline" && mode !== "replies") {
+              return errorJson("Invalid mode. Use posts, timeline, or replies.", 400);
+            }
+            if (parsed.type === "tweet" && body.mode !== undefined) {
+              return errorJson("Mode is only valid for account exports.", 400);
+            }
+
+            const requestType: FetchJobRequestType =
+              parsed.type === "tweet"
+                ? "thread"
+                : mode === "timeline"
+                  ? "timeline"
+                  : mode === "replies"
+                    ? "replies"
+                    : "user";
             const inputNormalized = parsed.type === "tweet" ? parsed.tweetId : parsed.username;
             telemetry.requestType = requestType;
             telemetry.inputNormalized = inputNormalized;

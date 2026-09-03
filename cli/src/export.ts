@@ -12,6 +12,7 @@ import {
   normalizeResult,
   normalizeTweetCards,
   parseUsername,
+  type AccountExportMode,
   type FetchJobRequestType,
   type FetchJobResumeResponse,
   type FetchJobStatusResponse,
@@ -44,9 +45,9 @@ interface JobTweetPage {
   total: number;
 }
 
-function printExportHelp(): void {
+function printExportHelp(command = "export"): void {
   process.stdout.write(`Usage:
-  xport export [options] <input>
+  xport ${command} [options] <input>
 
 Options:
   --format <markdown|json>  Export format (default: markdown)
@@ -56,8 +57,11 @@ Options:
   -h, --help                Show help
 
 Examples:
-  xport export --format markdown --out . "https://x.com/burakeregar/status/2020852442230120752"
-  xport export --format json --stdout "@frixaco"
+  ${
+    command === "export"
+      ? 'xport export --format markdown --out . "https://x.com/burakeregar/status/2020852442230120752"\n  xport export --format json --stdout "@frixaco"'
+      : `xport ${command} --format markdown --out . "@frixaco"`
+  }
 `);
 }
 
@@ -92,7 +96,7 @@ function parseFormat(value: string): ResultExportFormat {
   throw new CliError(`Unsupported format: ${value}. Use markdown or json.`);
 }
 
-function parseExportArgs(args: string[]): ExportOptions | "help" {
+function parseExportArgs(args: string[], command = "export"): ExportOptions | "help" {
   let format: ResultExportFormat = "markdown";
   let out: string | null = ".";
   let quiet = false;
@@ -118,7 +122,7 @@ function parseExportArgs(args: string[]): ExportOptions | "help" {
         const next = args[index + 1]!;
         if (next.startsWith("-")) {
           throw new CliError(
-            'Options must come before the input. Use `xport export --format markdown "https://x.com/..."`.',
+            `Options must come before the input. Use \`xport ${command} --format markdown <input>\`.`,
           );
         }
         throw new CliError(`Unexpected extra argument: ${next}`);
@@ -152,12 +156,12 @@ function parseExportArgs(args: string[]): ExportOptions | "help" {
     throw new CliError(`Unknown export option: ${arg}`);
   }
 
-  if (!input) throw new CliError("Missing input. Use `xport export [options] <input>`.");
+  if (!input) throw new CliError(`Missing input. Use \`xport ${command} [options] <input>\`.`);
   return { format, input, out, quiet, stdout };
 }
 
 function statusSummary(status: FetchJobStatusResponse): string {
-  const base = `${status.status}: ${status.storedTweets} stored posts, ${status.chargedCredits} credits charged`;
+  const base = `${status.status}: ${status.storedTweets} stored items, ${status.chargedCredits} credits charged`;
   return status.error?.message ? `${base} (${status.error.message})` : base;
 }
 
@@ -173,11 +177,12 @@ async function createFetchJob(
   ctx: CommandContext,
   token: string,
   input: string,
+  mode?: AccountExportMode,
 ): Promise<{ jobId: string }> {
   return requestJson<{ jobId: string }>(ctx, "/api/fetch-jobs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input }),
+    body: JSON.stringify({ input, mode }),
     token,
   });
 }
@@ -306,8 +311,9 @@ async function exportFetchJob(
   token: string,
   input: string,
   options: Pick<ExportOptions, "quiet">,
+  mode?: AccountExportMode,
 ): Promise<{ result: ResultState; isPartial: boolean }> {
-  const created = await createFetchJob(ctx, token, input);
+  const created = await createFetchJob(ctx, token, input, mode);
   process.stderr.write(`Job ID: ${created.jobId}\n`);
 
   const status = await pollJob(ctx, token, created.jobId, options);
@@ -364,10 +370,15 @@ async function writeExport(
   log(options, `${payload.label} written to ${target}.`);
 }
 
-export async function commandExport(ctx: CommandContext, args: string[]): Promise<void> {
-  const options = parseExportArgs(args);
+async function runExportCommand(
+  ctx: CommandContext,
+  args: string[],
+  accountMode?: Extract<AccountExportMode, "posts" | "replies">,
+): Promise<void> {
+  const command = accountMode ?? "export";
+  const options = parseExportArgs(args, command);
   if (options === "help") {
-    printExportHelp();
+    printExportHelp(command);
     return;
   }
 
@@ -379,17 +390,32 @@ export async function commandExport(ctx: CommandContext, args: string[]): Promis
   if (!requestConfig) {
     throw new CliError("Invalid input. Provide a valid X (ex-Twitter) URL or @username.");
   }
+  if (accountMode && requestConfig.type !== "user-tweets") {
+    throw new CliError(`xport ${accountMode} accepts only an account username or profile URL.`);
+  }
 
   const token = await requireToken(ctx);
   const exported =
     requestConfig.type === "article"
       ? await exportArticle(ctx, token, options.input)
-      : await exportFetchJob(ctx, token, options.input, options);
+      : await exportFetchJob(ctx, token, options.input, options, accountMode);
 
   const payload = getDownloadPayload(exported.result, options.format, {
     isPartial: exported.isPartial,
   });
   await writeExport(payload, options);
+}
+
+export async function commandExport(ctx: CommandContext, args: string[]): Promise<void> {
+  return runExportCommand(ctx, args);
+}
+
+export async function commandPosts(ctx: CommandContext, args: string[]): Promise<void> {
+  return runExportCommand(ctx, args, "posts");
+}
+
+export async function commandReplies(ctx: CommandContext, args: string[]): Promise<void> {
+  return runExportCommand(ctx, args, "replies");
 }
 
 export async function commandStop(ctx: CommandContext, args: string[]): Promise<void> {
