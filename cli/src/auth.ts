@@ -70,21 +70,22 @@ async function requestDeviceToken(
     : { ok: false, payload: isObject(payload) ? payload : {} };
 }
 
-function openBrowser(url: string): boolean {
+function openBrowser(url: string): Promise<boolean> {
   const platform = process.platform;
   const command = platform === "darwin" ? "open" : platform === "win32" ? "cmd" : "xdg-open";
   const args = platform === "win32" ? ["/c", "start", "", url] : [url];
 
-  try {
+  return new Promise((resolve) => {
     const child = spawn(command, args, {
       detached: true,
       stdio: "ignore",
     });
-    child.unref();
-    return true;
-  } catch {
-    return false;
-  }
+    child.once("error", () => resolve(false));
+    child.once("spawn", () => {
+      child.unref();
+      resolve(true);
+    });
+  });
 }
 
 function parseLoginArgs(args: string[]): { open: boolean } | "help" {
@@ -114,8 +115,12 @@ export async function commandLogin(ctx: CommandContext, args: string[]): Promise
   process.stdout.write(`Code: ${code.user_code}\n\n`);
 
   if (options.open) {
-    const opened = openBrowser(code.verification_uri_complete);
-    if (opened) process.stdout.write("Opened your browser.\n");
+    const opened = await openBrowser(code.verification_uri_complete);
+    process.stdout.write(
+      opened
+        ? "Opened your browser.\n"
+        : "Could not open a browser. Open the URL above on another device.\n",
+    );
   }
 
   process.stdout.write("Waiting for authorization...\n");

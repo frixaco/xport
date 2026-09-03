@@ -61,16 +61,17 @@ async function openBrowser(url: string): Promise<boolean> {
         ? ["cmd", "/c", "start", "", url]
         : ["xdg-open", url];
 
-  try {
+  return new Promise((resolve) => {
     const child = spawn(command[0], command.slice(1), {
       stdio: "ignore",
       detached: true,
     });
-    child.unref();
-    return true;
-  } catch {
-    return false;
-  }
+    child.once("error", () => resolve(false));
+    child.once("spawn", () => {
+      child.unref();
+      resolve(true);
+    });
+  });
 }
 
 function generatePkce(): PkceChallenge {
