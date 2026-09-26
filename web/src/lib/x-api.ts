@@ -233,6 +233,7 @@ async function xApiGet<T>(
       Accept: "application/json",
     },
     cache: "no-store",
+    signal: AbortSignal.timeout(30_000),
   });
 
   const payload = await parseResponse(response);

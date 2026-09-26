@@ -3,6 +3,7 @@ import {
   errorJson,
   getOwnedJobOrResponse,
   jobStatusJson,
+  requireTrustedMutation,
   withApiRouteTelemetry,
 } from "@/lib/api-routes";
 import { requestJobStop } from "@/lib/fetch-job";
@@ -19,6 +20,9 @@ export const Route = createFileRoute("/api/fetch-jobs/$jobId/stop")({
             jobId: params.jobId,
           },
           async (telemetry) => {
+            const originError = requireTrustedMutation(request);
+            if (originError) return originError;
+
             const result = await getOwnedJobOrResponse(request, params.jobId);
             if ("response" in result) return result.response;
 

@@ -5,9 +5,10 @@ import {
   type CreditsUsageMetadata,
 } from "@/lib/billing-access";
 import { buildUsageMetadata, withUsageMetadata, type XportUsageMetadata } from "@/lib/credits";
-import { getJobStatus, type FetchJobRow } from "@/lib/fetch-job";
+import { FetchJobLimitError, getJobStatus, type FetchJobRow } from "@/lib/fetch-job";
 import { captureServerEvent, captureServerException } from "@/lib/server-telemetry";
 import { XApiError } from "@/lib/x-api";
+import { isTrustedMutationRequest, publicJobError } from "@/lib/request-security";
 
 type JsonObject = Record<string, unknown>;
 
@@ -46,10 +47,21 @@ function handleApiRouteError(error: unknown, fallbackMessage: string): Response 
   }
 
   if (error instanceof XApiError) {
-    return errorJson(error.message, error.status, { details: error.details });
+    return errorJson("The source service could not complete the request.", 502, {
+      code: "UPSTREAM_ERROR",
+    });
+  }
+
+  if (error instanceof FetchJobLimitError) {
+    return errorJson(error.message, 429, { code: "JOB_LIMIT_REACHED" });
   }
 
   return errorJson(fallbackMessage, 500);
+}
+
+export function requireTrustedMutation(request: Request): Response | null {
+  if (isTrustedMutationRequest(request)) return null;
+  return errorJson("Cross-origin request denied.", 403, { code: "INVALID_ORIGIN" });
 }
 
 export async function withApiRouteTelemetry(
@@ -125,8 +137,7 @@ export function jobStatusJson(
     storedTweets: job.storedTweets,
     chargedCredits: job.chargedCredits,
     hasNextPage: job.hasNextPage,
-    error:
-      job.errorCode || job.errorMessage ? { code: job.errorCode, message: job.errorMessage } : null,
+    error: publicJobError(job.errorCode),
     updatedAt: job.updatedAt,
   };
 

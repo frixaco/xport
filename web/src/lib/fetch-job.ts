@@ -15,8 +15,19 @@ import { captureServerEvent, captureServerException } from "@/lib/server-telemet
 type FetchJobStatus = "queued" | "running" | "completed" | "stopped" | "failed";
 export type FetchJobRequestType = "thread" | "user" | "timeline" | "replies";
 const ACTIVE_FETCH_JOB_STATUSES: FetchJobStatus[] = ["queued", "running"];
+const TERMINAL_FETCH_JOB_STATUSES: FetchJobStatus[] = ["completed", "stopped", "failed"];
+const MAX_ACTIVE_JOBS_PER_USER = 2;
+const MAX_FETCH_PAGES = 100;
+const MAX_FETCH_DURATION_MS = 15 * 60 * 1000;
 
 export type FetchJobRow = typeof fetchJobs.$inferSelect;
+
+export class FetchJobLimitError extends Error {
+  constructor() {
+    super("Too many exports are already in progress.");
+    this.name = "FetchJobLimitError";
+  }
+}
 
 function isQueuedOrStaleRunningJobSql(): ReturnType<typeof sql> {
   return sql`(
@@ -36,18 +47,43 @@ interface CreateFetchJobParams {
 }
 
 export async function createFetchJob(params: CreateFetchJobParams): Promise<string> {
-  const [job] = await db
-    .insert(fetchJobs)
-    .values({
-      ownerUserId: params.ownerUserId,
-      requestType: params.requestType,
-      inputRaw: params.inputRaw,
-      inputNormalized: params.inputNormalized,
-      expiresAt: sql`now() + interval '1 hour'`,
-    })
-    .returning({ id: fetchJobs.id });
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${params.ownerUserId}))`);
+    await tx
+      .delete(fetchJobs)
+      .where(
+        and(
+          inArray(fetchJobs.status, TERMINAL_FETCH_JOB_STATUSES),
+          sql`${fetchJobs.expiresAt} < now()`,
+        ),
+      );
 
-  return job.id;
+    const [activeJobs] = await tx
+      .select({ value: count() })
+      .from(fetchJobs)
+      .where(
+        and(
+          eq(fetchJobs.ownerUserId, params.ownerUserId),
+          inArray(fetchJobs.status, ACTIVE_FETCH_JOB_STATUSES),
+        ),
+      );
+    if ((activeJobs?.value ?? 0) >= MAX_ACTIVE_JOBS_PER_USER) {
+      throw new FetchJobLimitError();
+    }
+
+    const [job] = await tx
+      .insert(fetchJobs)
+      .values({
+        ownerUserId: params.ownerUserId,
+        requestType: params.requestType,
+        inputRaw: params.inputRaw,
+        inputNormalized: params.inputNormalized,
+        expiresAt: sql`now() + interval '1 hour'`,
+      })
+      .returning({ id: fetchJobs.id });
+
+    return job.id;
+  });
 }
 
 export async function getJobStatus(jobId: string): Promise<FetchJobRow | null> {
@@ -103,6 +139,11 @@ export async function requestJobStop(jobId: string): Promise<FetchJobRow | null>
         WHEN ${isQueuedOrStaleRunningJobSql()}
         THEN null
         ELSE ${fetchJobs.runnerId}
+      END`,
+      expiresAt: sql<Date | null>`CASE
+        WHEN ${isQueuedOrStaleRunningJobSql()}
+        THEN now() + interval '1 hour'
+        ELSE ${fetchJobs.expiresAt}
       END`,
       finishedAt: sql<Date | null>`CASE
         WHEN ${isQueuedOrStaleRunningJobSql()}
@@ -188,6 +229,7 @@ async function finishJob(
       errorCode: error?.code ?? null,
       errorMessage: error?.message ?? null,
       runnerId: null,
+      expiresAt: sql`now() + interval '1 hour'`,
       updatedAt: new Date(),
     })
     .where(
@@ -318,6 +360,7 @@ async function runFetchLoop(jobId: string, authHeaders: Headers): Promise<void> 
   let chargedCredits = job.chargedCredits;
   const seenCursors = new Set<string>();
   const isThread = job.requestType === "thread";
+  const deadline = Date.now() + MAX_FETCH_DURATION_MS;
 
   try {
     let userId: string | undefined;
@@ -327,6 +370,14 @@ async function runFetchLoop(jobId: string, authHeaders: Headers): Promise<void> 
     }
 
     while (true) {
+      if (pagesFetched >= MAX_FETCH_PAGES || Date.now() >= deadline) {
+        await finishJob(jobId, runnerId, "failed", {
+          code: "FETCH_LIMIT_REACHED",
+          message: "Fetch safety limit reached.",
+        });
+        return;
+      }
+
       if (await isStopRequested(jobId)) {
         await finishJob(jobId, runnerId, "stopped");
         return;
@@ -428,6 +479,15 @@ async function runFetchLoop(jobId: string, authHeaders: Headers): Promise<void> 
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("Fetch job failed", { jobId, error });
+    captureServerException(error, {
+      distinctId: job.ownerUserId,
+      properties: {
+        job_id: jobId,
+        request_type: job.requestType,
+        error_code: error instanceof XApiError ? "UPSTREAM_ERROR" : "FETCH_JOB_ERROR",
+      },
+    });
     await finishJob(jobId, runnerId, "failed", {
       code: error instanceof XApiError ? "UPSTREAM_ERROR" : "FETCH_JOB_ERROR",
       message,
@@ -473,13 +533,6 @@ function captureFinishedJob(job: FetchJobRow): void {
     distinctId: job.ownerUserId,
     properties,
   });
-
-  if (job.status === "failed") {
-    captureServerException(new Error("Fetch job failed"), {
-      distinctId: job.ownerUserId,
-      properties,
-    });
-  }
 }
 
 function getFinishedJobEvent(status: FetchJobStatus): string | null {

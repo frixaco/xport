@@ -5,6 +5,7 @@ import { TheInput } from "@/components/the-input";
 import { validateHomeSearch } from "@/components/the-input/search";
 import { AuthErrorToast } from "@/components/auth-error-toast";
 import { CheckoutToast } from "@/components/checkout-toast";
+import { ProductDemo } from "@/components/product-demo";
 import { getSiteUrl, SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_TITLE } from "@/lib/seo";
 
 export const Route = createFileRoute("/")({
@@ -63,8 +64,11 @@ function HomePage() {
         <AuthErrorToast />
         <CheckoutToast />
       </Suspense>
-      <main className="flex min-h-0 flex-1 flex-col items-center justify-center py-6">
-        <TheInput search={search} />
+      <main className="flex min-h-0 flex-1 flex-col items-center">
+        <div className="flex min-h-[20rem] w-full items-center justify-center py-8 sm:min-h-[28rem]">
+          <TheInput search={search} />
+        </div>
+        <ProductDemo />
       </main>
     </div>
   );

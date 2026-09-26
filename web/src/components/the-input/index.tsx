@@ -5,9 +5,7 @@ import {
   ChevronDown,
   Copy,
   Download,
-  FileText,
   LoaderCircle,
-  MessagesSquare,
   Square,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -43,12 +41,6 @@ function jobStatusLabel({
   if (status === "completed") return "Complete";
   return "Failed";
 }
-
-const capabilities = [
-  { title: "Unroll threads", icon: MessagesSquare },
-  { title: "Export profiles", icon: Download },
-  { title: "Save articles", icon: FileText },
-] as const;
 
 interface ExportActionsProps {
   actions: Array<{ value: ResultExportFormat; label: string }>;
@@ -186,18 +178,23 @@ export function TheInput({ search }: { search: HomeSearch }) {
   return (
     <div className="flex w-full max-w-3xl flex-col items-center gap-3 px-6">
       {!isActive && (
-        <div className="flex animate-in flex-col items-center gap-1.5 text-center duration-300 fade-in">
-          <h1 className="text-lg font-semibold tracking-tight sm:text-xl">
-            Export X (ex-Twitter) posts
+        <div className="animate-in text-center duration-300 fade-in">
+          <h1 className="max-w-3xl text-2xl leading-tight font-semibold tracking-tight text-balance sm:text-3xl md:text-4xl">
+            Export X{" "}
+            <span className="inline-block text-[1.08em] font-extrabold text-fuchsia-600 dark:text-fuchsia-400">
+              posts,
+            </span>{" "}
+            <span className="inline-block text-[1.08em] font-extrabold text-violet-600 dark:text-violet-400">
+              threads,
+            </span>{" "}
+            <span className="inline-block text-[1.08em] font-extrabold text-sky-600 dark:text-sky-400">
+              replies,
+            </span>{" "}
+            <span className="inline-block text-[1.08em] font-extrabold text-emerald-600 dark:text-emerald-400">
+              articles
+            </span>{" "}
+            in <span className="whitespace-nowrap">Markdown/JSON</span>
           </h1>
-          <div className="flex w-full max-w-2xl flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
-            {capabilities.map(({ icon: Icon, title }) => (
-              <span key={title} className="inline-flex items-center gap-1.5">
-                <Icon className="size-3 text-chart-2 sm:size-3.5" />
-                <span className="font-medium text-foreground/90">{title}</span>
-              </span>
-            ))}
-          </div>
         </div>
       )}
 

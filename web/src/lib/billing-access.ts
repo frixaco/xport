@@ -2,6 +2,9 @@ import { auth } from "@/lib/auth";
 import { extractCreditsBalance, normalizeUsageCredits } from "@/lib/credits";
 
 const USAGE_EVENT_NAME = "usage";
+const PREFLIGHT_RATE_LIMIT = 30;
+const PREFLIGHT_RATE_WINDOW_MS = 60_000;
+const preflightWindows = new Map<string, { count: number; startedAt: number }>();
 
 export class BillingAccessError extends Error {
   status: number;
@@ -27,11 +30,36 @@ async function getSessionOrThrow(request: Request) {
   return session;
 }
 
+function enforcePreflightRateLimit(userId: string): void {
+  const now = Date.now();
+  if (preflightWindows.size > 10_000) {
+    for (const [id, candidate] of preflightWindows) {
+      if (now - candidate.startedAt >= PREFLIGHT_RATE_WINDOW_MS) preflightWindows.delete(id);
+    }
+  }
+
+  const window = preflightWindows.get(userId);
+  if (!window || now - window.startedAt >= PREFLIGHT_RATE_WINDOW_MS) {
+    preflightWindows.set(userId, { count: 1, startedAt: now });
+    return;
+  }
+
+  if (window.count >= PREFLIGHT_RATE_LIMIT) {
+    throw new BillingAccessError(
+      "Too many export requests. Try again shortly.",
+      429,
+      "RATE_LIMITED",
+    );
+  }
+  window.count++;
+}
+
 export async function assertSufficientCredits(
   request: Request,
   requiredCredits: number,
 ): Promise<void> {
-  await getSessionOrThrow(request);
+  const session = await getSessionOrThrow(request);
+  enforcePreflightRateLimit(session.user.id);
 
   let state: unknown = null;
   try {

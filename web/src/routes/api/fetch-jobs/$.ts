@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { auth } from "@/lib/auth";
 import { parseTwitterInput } from "@/lib/url-parser";
 import { assertSufficientCredits } from "@/lib/billing-access";
-import { errorJson, withApiRouteTelemetry } from "@/lib/api-routes";
+import { errorJson, requireTrustedMutation, withApiRouteTelemetry } from "@/lib/api-routes";
 import {
   createFetchJob,
   startFetchJobInBackground,
@@ -21,6 +21,9 @@ export const Route = createFileRoute("/api/fetch-jobs/$")({
             fallbackMessage: "Unexpected error while creating fetch job.",
           },
           async (telemetry) => {
+            const originError = requireTrustedMutation(request);
+            if (originError) return originError;
+
             const session = await auth.api.getSession({ headers: request.headers });
             telemetry.userId = session?.user.id ?? null;
             if (!session) {

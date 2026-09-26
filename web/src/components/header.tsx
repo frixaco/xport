@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { LogOut } from "lucide-react";
+import { LoaderCircle, LogOut } from "lucide-react";
 import { usePostHog } from "@posthog/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,14 +31,6 @@ const sessionQueryKey = ["auth", "session"] as const;
 async function fetchSession(): Promise<typeof authClient.$Infer.Session | null> {
   const result = await authClient.getSession();
   return result.data ?? null;
-}
-
-function handleSignIn(provider: "github" | "google", posthog: ReturnType<typeof usePostHog>) {
-  posthog?.capture("sign in started", { provider });
-  authClient.signIn.social({
-    provider,
-    callbackURL: "/",
-  });
 }
 
 function GitHubIcon({ className }: { className?: string }) {
@@ -75,6 +67,7 @@ function GoogleIcon({ className }: { className?: string }) {
 export function Header() {
   const posthog = usePostHog();
   const queryClient = useQueryClient();
+  const [signingInWith, setSigningInWith] = useState<"github" | "google" | null>(null);
   const sessionQuery = useQuery({
     queryKey: sessionQueryKey,
     queryFn: fetchSession,
@@ -87,9 +80,24 @@ export function Header() {
       queryClient.invalidateQueries({ queryKey: creditsQueryKey });
     },
   });
-
   const handleSignOut = () => {
     signOutMutation.mutate();
+  };
+
+  const handleSignIn = async (provider: "github" | "google") => {
+    if (signingInWith) return;
+
+    setSigningInWith(provider);
+    posthog?.capture("sign in started", { provider });
+    try {
+      const result = await authClient.signIn.social({
+        provider,
+        callbackURL: "/",
+      });
+      if (result.error) setSigningInWith(null);
+    } catch {
+      setSigningInWith(null);
+    }
   };
 
   const session = sessionQuery.data;
@@ -215,19 +223,29 @@ export function Header() {
               <Button
                 variant="outline"
                 className="h-10 gap-2.5"
-                onClick={() => handleSignIn("google", posthog)}
+                disabled={signingInWith !== null}
+                onClick={() => void handleSignIn("google")}
               >
-                <GoogleIcon className="size-5" />
-                Continue with Google
+                {signingInWith === "google" ? (
+                  <LoaderCircle className="size-5 animate-spin" />
+                ) : (
+                  <GoogleIcon className="size-5" />
+                )}
+                {signingInWith === "google" ? "Connecting to Google…" : "Continue with Google"}
               </Button>
 
               <Button
                 variant="outline"
                 className="h-10 gap-2.5"
-                onClick={() => handleSignIn("github", posthog)}
+                disabled={signingInWith !== null}
+                onClick={() => void handleSignIn("github")}
               >
-                <GitHubIcon className="size-5" />
-                Continue with GitHub
+                {signingInWith === "github" ? (
+                  <LoaderCircle className="size-5 animate-spin" />
+                ) : (
+                  <GitHubIcon className="size-5" />
+                )}
+                {signingInWith === "github" ? "Connecting to GitHub…" : "Continue with GitHub"}
               </Button>
             </PopoverContent>
           </Popover>
