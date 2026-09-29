@@ -301,7 +301,7 @@ async function exportArticle(
   const payload = await requestJson<unknown>(
     ctx,
     `/api/article?input=${encodeURIComponent(input)}`,
-    { token },
+    { token, method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() } },
   );
   return { result: normalizeResult(payload, "article", input), isPartial: false };
 }

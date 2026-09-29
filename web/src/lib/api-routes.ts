@@ -1,9 +1,7 @@
 import { auth } from "@/lib/auth";
-import {
-  BillingAccessError,
-  ingestCreditsUsage,
-  type CreditsUsageMetadata,
-} from "@/lib/billing-access";
+import { BillingAccessError, getBillingUser } from "@/lib/billing-access";
+import { getCreditBalance } from "./credit-ledger.ts";
+import { getDirectResult, settleDirectResult, type DirectResult } from "./direct-billing.ts";
 import { buildUsageMetadata, withUsageMetadata, type XportUsageMetadata } from "@/lib/credits";
 import { FetchJobLimitError, getJobStatus, type FetchJobRow } from "@/lib/fetch-job";
 import { captureServerEvent, captureServerException } from "@/lib/server-telemetry";
@@ -83,19 +81,35 @@ export async function withApiRouteTelemetry(
   return response;
 }
 
-export async function jsonWithChargedUsage<T extends object>(
+export async function jsonWithChargedUsage(
   request: Request,
-  payload: T,
-  usage: CreditsUsageMetadata & { tweetCount?: number },
+  fingerprint: string,
+  fetchResult: () => Promise<DirectResult>,
 ): Promise<Response> {
-  const charged = await ingestCreditsUsage(request, { credits: usage.credits });
+  const originError = requireTrustedMutation(request);
+  if (originError) return originError;
+  const userId = await getBillingUser(request);
+  const key = request.headers.get("Idempotency-Key");
+  if (!key || !/^[a-zA-Z0-9_-]{1,128}$/.test(key)) {
+    throw new BillingAccessError(
+      "A valid Idempotency-Key header is required.",
+      400,
+      "INVALID_OPERATION_KEY",
+    );
+  }
+  const operationKey = `direct:${userId}:${key}`;
+  let result = await getDirectResult(operationKey, userId, fingerprint);
+  if (!result) {
+    if ((await getCreditBalance(userId)) < 1)
+      throw new BillingAccessError("Insufficient credits.", 402, "INSUFFICIENT_CREDITS");
+    result = await settleDirectResult(operationKey, userId, fingerprint, await fetchResult());
+  }
   const usageMetadata = buildUsageMetadata({
-    charged,
-    chargedCredits: usage.credits,
-    tweetCount: usage.tweetCount,
+    charged: true,
+    chargedCredits: result.credits,
+    tweetCount: result.tweetCount,
   });
-
-  return Response.json(withUsageMetadata(payload, usageMetadata), {
+  return Response.json(withUsageMetadata(result.payload, usageMetadata), {
     status: 200,
     headers: usageHeaders(usageMetadata),
   });

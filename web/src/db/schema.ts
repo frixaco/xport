@@ -25,11 +25,15 @@ export const user = pgTable(
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     email: text("email").notNull(),
+    creditBalance: integer("credit_balance").notNull().default(0),
     emailVerified: boolean("email_verified").notNull().default(false),
     image: text("image"),
     ...timestamps,
   },
-  (table) => [uniqueIndex("user_email_uidx").on(table.email)],
+  (table) => [
+    uniqueIndex("user_email_uidx").on(table.email),
+    check("user_credit_balance_check", sql`${table.creditBalance} >= 0`),
+  ],
 );
 
 export const session = pgTable(
@@ -174,5 +178,37 @@ export const fetchTweets = pgTable(
     uniqueIndex("fetch_tweets_job_tweet_uidx").on(table.jobId, table.tweetId),
     index("fetch_tweets_job_seq_idx").on(table.jobId, table.seq),
     index("fetch_tweets_job_created_idx").on(table.jobId, table.createdAt),
+  ],
+);
+
+export const creditTransactions = pgTable(
+  "xport_credit_transactions",
+  {
+    operationKey: text("operation_key").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id),
+    amount: integer("amount").notNull(),
+    type: text("type").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    polarPayload: jsonb("polar_payload").$type<{
+      name: string;
+      externalCustomerId: string;
+      externalId: string;
+      metadata: { credits: number };
+    }>(),
+    polarDeliveredAt: timestamp("polar_delivered_at", { withTimezone: true, mode: "date" }),
+    polarAttempts: integer("polar_attempts").notNull().default(0),
+    polarNextAttemptAt: timestamp("polar_next_attempt_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    polarLastError: text("polar_last_error"),
+  },
+  (table) => [
+    index("credit_transactions_user_idx").on(table.userId),
+    index("credit_transactions_pending_idx")
+      .on(table.polarNextAttemptAt)
+      .where(sql`${table.polarPayload} IS NOT NULL AND ${table.polarDeliveredAt} IS NULL`),
   ],
 );

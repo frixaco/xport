@@ -29,6 +29,9 @@ export function isTrustedMutationRequest(request: Request): boolean {
 export function publicJobError(code: string | null): { code: string; message: string } | null {
   if (!code) return null;
 
+  if (code === "INSUFFICIENT_CREDITS") {
+    return { code, message: "Your credits ran out. Paid results are available to export." };
+  }
   if (code === "FETCH_LIMIT_REACHED") {
     return {
       code,

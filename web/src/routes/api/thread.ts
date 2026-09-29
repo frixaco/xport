@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { fetchThreadContext } from "@/lib/x-api";
 import { parseTweetId } from "@/lib/url-parser";
-import { assertSufficientCredits } from "@/lib/billing-access";
-import { calculateTweetListCredits, MIN_PREFLIGHT_CREDITS } from "@/lib/credits";
+import { calculateTweetListCredits } from "@/lib/credits";
 import {
   errorJson,
   firstSearchParam,
@@ -13,7 +12,12 @@ import {
 export const Route = createFileRoute("/api/thread")({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: () =>
+        Response.json(
+          { error: "Use POST with an Idempotency-Key header." },
+          { status: 405, headers: { Allow: "POST" } },
+        ),
+      POST: async ({ request }) => {
         return withApiRouteTelemetry(
           request,
           {
@@ -36,14 +40,19 @@ export const Route = createFileRoute("/api/thread")({
 
             telemetry.inputNormalized = tweetId;
             const cursor = url.searchParams.get("cursor") ?? undefined;
-            await assertSufficientCredits(request, MIN_PREFLIGHT_CREDITS);
-            const data = await fetchThreadContext(tweetId, cursor);
-            const tweetCount = Array.isArray(data.tweets) ? data.tweets.length : 0;
-            const chargedCredits = calculateTweetListCredits(tweetCount);
-            return jsonWithChargedUsage(request, data, {
-              credits: chargedCredits,
-              tweetCount,
-            });
+            return jsonWithChargedUsage(
+              request,
+              JSON.stringify(["thread", tweetId, cursor]),
+              async () => {
+                const data = await fetchThreadContext(tweetId, cursor);
+                const tweetCount = Array.isArray(data.tweets) ? data.tweets.length : 0;
+                return {
+                  payload: data,
+                  credits: calculateTweetListCredits(tweetCount),
+                  tweetCount,
+                };
+              },
+            );
           },
         );
       },

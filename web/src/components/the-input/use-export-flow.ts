@@ -349,7 +349,7 @@ export function useExportFlow(search: HomeSearch) {
     });
 
     if (requestConfig.type === "article") {
-      articleMutation.mutate(trimmed);
+      articleMutation.mutate({ input: trimmed, operationKey: crypto.randomUUID() });
       return;
     }
 

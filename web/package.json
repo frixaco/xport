@@ -15,7 +15,10 @@
     "format:check": "oxfmt --ignore-path ../.gitignore --check . '!src/routeTree.gen.ts'",
     "format": "oxfmt --ignore-path ../.gitignore --write . '!src/routeTree.gen.ts'",
     "lint": "oxlint --ignore-path ../.gitignore --ignore-pattern src/routeTree.gen.ts .",
-    "lint:fix": "oxlint --fix --ignore-path ../.gitignore --ignore-pattern src/routeTree.gen.ts ."
+    "lint:fix": "oxlint --fix --ignore-path ../.gitignore --ignore-pattern src/routeTree.gen.ts .",
+    "credits:deliver": "node scripts/deliver-credits.mjs",
+    "credits:migrate": "node scripts/migrate-credits.mjs",
+    "test:billing": "pnpm --filter @frixaco/xport build && node --test test/billing.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

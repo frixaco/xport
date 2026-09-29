@@ -9,7 +9,8 @@ import {
   XApiError,
   type XPost,
 } from "@/lib/x-api";
-import { ingestCreditsUsage } from "@/lib/billing-access";
+import { assertBillingEnabled } from "./credit-ledger.ts";
+import { settleFetchPage } from "./fetch-job-settlement.ts";
 import { captureServerEvent, captureServerException } from "@/lib/server-telemetry";
 
 type FetchJobStatus = "queued" | "running" | "completed" | "stopped" | "failed";
@@ -163,55 +164,6 @@ export async function requestJobStop(jobId: string): Promise<FetchJobRow | null>
   return getJobStatus(jobId);
 }
 
-async function updateJobProgress(
-  jobId: string,
-  runnerId: string,
-  updates: {
-    pagesFetched: number;
-    rawFetchedTweets: number;
-    nextCursor: string | null;
-    hasNextPage: boolean;
-  },
-): Promise<{ storedTweets: number; updated: boolean }> {
-  const [storedResult] = await db
-    .select({ value: count() })
-    .from(fetchTweets)
-    .where(eq(fetchTweets.jobId, jobId));
-  const storedTweets = storedResult?.value ?? 0;
-
-  const [job] = await db
-    .update(fetchJobs)
-    .set({
-      pagesFetched: updates.pagesFetched,
-      rawFetchedTweets: updates.rawFetchedTweets,
-      storedTweets,
-      nextCursor: updates.nextCursor,
-      hasNextPage: updates.hasNextPage,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(fetchJobs.id, jobId), eq(fetchJobs.runnerId, runnerId)))
-    .returning({ id: fetchJobs.id });
-
-  return { storedTweets, updated: Boolean(job) };
-}
-
-async function updateJobChargedCredits(
-  jobId: string,
-  runnerId: string,
-  chargedCredits: number,
-): Promise<boolean> {
-  const [job] = await db
-    .update(fetchJobs)
-    .set({
-      chargedCredits,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(fetchJobs.id, jobId), eq(fetchJobs.runnerId, runnerId)))
-    .returning({ id: fetchJobs.id });
-
-  return Boolean(job);
-}
-
 async function finishJob(
   jobId: string,
   runnerId: string,
@@ -239,12 +191,9 @@ async function finishJob(
         inArray(fetchJobs.status, ACTIVE_FETCH_JOB_STATUSES),
       ),
     )
-    .returning({ id: fetchJobs.id });
+    .returning();
 
-  if (job) {
-    const finishedJob = await getJobStatus(jobId);
-    if (finishedJob) captureFinishedJob(finishedJob);
-  }
+  if (job) captureFinishedJob(job);
 
   return Boolean(job);
 }
@@ -286,38 +235,6 @@ async function touchActiveJob(jobId: string, runnerId: string): Promise<boolean>
   return Boolean(job);
 }
 
-async function insertTweets(
-  jobId: string,
-  tweets: XPost[],
-  page: number,
-  mainTweetId: string | null,
-): Promise<void> {
-  if (tweets.length === 0) return;
-
-  const [seqResult] = await db
-    .select({ maxSeq: sql<number | null>`max(${fetchTweets.seq})` })
-    .from(fetchTweets)
-    .where(eq(fetchTweets.jobId, jobId));
-  let seq = seqResult?.maxSeq ?? 0;
-
-  await db
-    .insert(fetchTweets)
-    .values(
-      tweets.map((tweet) => {
-        seq++;
-        return {
-          jobId,
-          tweetId: tweet.id,
-          seq,
-          page,
-          tweetJson: tweet,
-          isMain: page === 1 && mainTweetId !== null && tweet.id === mainTweetId,
-        };
-      }),
-    )
-    .onConflictDoNothing({ target: [fetchTweets.jobId, fetchTweets.tweetId] });
-}
-
 async function isStopRequested(jobId: string): Promise<boolean> {
   const [job] = await db
     .select({ stopRequested: fetchJobs.stopRequested })
@@ -349,15 +266,14 @@ async function fetchWithRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> 
   throw lastError;
 }
 
-async function runFetchLoop(jobId: string, authHeaders: Headers): Promise<void> {
+async function runFetchLoop(jobId: string): Promise<void> {
+  assertBillingEnabled();
   const runnerId = randomUUID();
   const job = await claimFetchJob(jobId, runnerId);
   if (!job) return;
 
   let cursor = job.nextCursor ?? undefined;
   let pagesFetched = job.pagesFetched;
-  let rawFetchedTweets = job.rawFetchedTweets;
-  let chargedCredits = job.chargedCredits;
   const seenCursors = new Set<string>();
   const isThread = job.requestType === "thread";
   const deadline = Date.now() + MAX_FETCH_DURATION_MS;
@@ -386,13 +302,10 @@ async function runFetchLoop(jobId: string, authHeaders: Headers): Promise<void> 
 
       if (cursor) {
         if (seenCursors.has(cursor)) {
-          const progress = await updateJobProgress(jobId, runnerId, {
-            pagesFetched,
-            rawFetchedTweets,
-            nextCursor: null,
-            hasNextPage: false,
-          });
-          if (!progress.updated) return;
+          await db
+            .update(fetchJobs)
+            .set({ nextCursor: null, hasNextPage: false })
+            .where(and(eq(fetchJobs.id, jobId), eq(fetchJobs.runnerId, runnerId)));
           await finishJob(jobId, runnerId, "completed");
           return;
         }
@@ -436,44 +349,21 @@ async function runFetchLoop(jobId: string, authHeaders: Headers): Promise<void> 
         nextCursor = response.next_cursor;
       }
 
-      if (!(await touchActiveJob(jobId, runnerId))) return;
-
-      if (await isStopRequested(jobId)) {
-        await finishJob(jobId, runnerId, "stopped");
-        return;
-      }
-
-      pagesFetched++;
-      rawFetchedTweets += rawPageTweetCount;
-
-      await insertTweets(jobId, tweets, pagesFetched, isThread ? job.inputNormalized : null);
-
-      const progress = await updateJobProgress(jobId, runnerId, {
-        pagesFetched,
-        rawFetchedTweets,
+      const settled = await settleFetchPage({
+        jobId,
+        runnerId,
+        cursor: cursor ?? null,
+        tweets,
+        rawCount: rawPageTweetCount,
         nextCursor: nextCursor ?? null,
         hasNextPage,
       });
-      if (!progress.updated) return;
-
-      const requiredCredits = Math.max(1, Math.ceil(progress.storedTweets / 20));
-      const delta = requiredCredits - chargedCredits;
-      if (delta > 0) {
-        const billingRequest = new Request("http://localhost", {
-          headers: authHeaders,
-        });
-        const charged = await ingestCreditsUsage(billingRequest, { credits: delta });
-        if (!charged) {
-          throw new Error("Could not charge credits for this export.");
-        }
-        chargedCredits += delta;
-        if (!(await updateJobChargedCredits(jobId, runnerId, chargedCredits))) return;
-      }
-
-      if (!hasNextPage || !nextCursor || rawPageTweetCount === 0) {
-        await finishJob(jobId, runnerId, "completed");
+      if (!settled) return;
+      if (settled.status !== "running") {
+        captureFinishedJob(settled);
         return;
       }
+      pagesFetched = settled.pagesFetched;
 
       cursor = nextCursor;
     }
@@ -495,14 +385,8 @@ async function runFetchLoop(jobId: string, authHeaders: Headers): Promise<void> 
   }
 }
 
-export function startFetchJobInBackground(jobId: string, requestHeaders: Headers): void {
-  const authHeaders = new Headers();
-  const cookie = requestHeaders.get("cookie");
-  if (cookie) authHeaders.set("cookie", cookie);
-  const authorization = requestHeaders.get("authorization");
-  if (authorization) authHeaders.set("authorization", authorization);
-
-  runFetchLoop(jobId, authHeaders).catch((error: unknown) => {
+export function startFetchJobInBackground(jobId: string): void {
+  runFetchLoop(jobId).catch((error: unknown) => {
     console.error(error);
     captureServerException(error, {
       properties: {

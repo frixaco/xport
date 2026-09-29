@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { auth } from "@/lib/auth";
 import { errorJson } from "@/lib/api-routes";
-import { extractCreditsBalance } from "@/lib/credits";
+import { getCreditBalance } from "@/lib/credit-ledger";
 
 export const Route = createFileRoute("/api/cli/me")({
   server: {
@@ -14,11 +14,7 @@ export const Route = createFileRoute("/api/cli/me")({
 
         let credits: number | null = null;
         try {
-          credits = extractCreditsBalance(
-            await auth.api.state({
-              headers: request.headers,
-            }),
-          );
+          credits = await getCreditBalance(session.user.id);
         } catch {
           credits = null;
         }

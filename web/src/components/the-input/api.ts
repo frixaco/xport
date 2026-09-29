@@ -36,9 +36,16 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return payload as T;
 }
 
-export async function fetchArticleResult(input: string): Promise<ResultState> {
+export async function fetchArticleResult({
+  input,
+  operationKey,
+}: {
+  input: string;
+  operationKey: string;
+}): Promise<ResultState> {
   const payload = await fetchJson<unknown>(`/api/article?input=${encodeURIComponent(input)}`, {
-    method: "GET",
+    method: "POST",
+    headers: { "Idempotency-Key": operationKey },
     cache: "no-store",
   });
   return normalizeResult(payload, "article", input);

@@ -100,7 +100,8 @@ Required:
 Optional:
 
 - `SITE_URL` - canonical origin for SEO metadata; falls back to `BETTER_AUTH_URL`, then `http://localhost:3000`.
-- Polar (billing) - `POLAR_ENV`, `POLAR_ACCESS_TOKEN` or `SANDBOX_POLAR_ACCESS_TOKEN`, `POLAR_WEBHOOK_SECRET`, `POLAR_CREDITS_50_CREDITS_PRODUCT_ID` or `SANDBOX_POLAR_CREDITS_50_CREDITS_PRODUCT_ID`, `POLAR_CREDITS_500_CREDITS_PRODUCT_ID` or `SANDBOX_POLAR_CREDITS_500_CREDITS_PRODUCT_ID`. In production, signup credits are granted by the Polar `onCustomerCreated` webhook.
+- Polar (billing) - `POLAR_ENV`, `POLAR_ACCESS_TOKEN` or `SANDBOX_POLAR_ACCESS_TOKEN`, `POLAR_WEBHOOK_SECRET`, `POLAR_CREDITS_50_CREDITS_PRODUCT_ID` or `SANDBOX_POLAR_CREDITS_50_CREDITS_PRODUCT_ID`, `POLAR_CREDITS_500_CREDITS_PRODUCT_ID` or `SANDBOX_POLAR_CREDITS_500_CREDITS_PRODUCT_ID`. Signup credits are granted locally after user creation, with an idempotent retry on session creation to recover interrupted signups. Purchased credits are granted by the verified Polar `order.paid` webhook; enable that event at `/api/auth/polar/webhooks`. The legacy product environment-variable names map to 125 and 1250 credits respectively; see `web/src/lib/billing-products.ts`.
+- `BILLING_MAINTENANCE=true` - blocks new billing requests, signup/purchase processing, and Polar delivery during cutover; job stop requests remain available.
 - PostHog (analytics) - `PUBLIC_POSTHOG_KEY`, `PUBLIC_POSTHOG_HOST`. Omitted safely when unset.
 
 ## Deployment
@@ -170,3 +171,37 @@ Older local extraction scripts in `cli/` talk to the upstream API directly and r
 ## License
 
 MIT.
+
+## Local billing verification
+
+Use a dedicated local PostgreSQL database whose name ends in `_test`. The test runner applies migrations and removes its own test users afterward. It runs the real HTTP routes on port 3108 with a local upstream stub; no live X or Polar credentials are needed.
+
+```bash
+pnpm --filter @frixaco/xport build
+DATABASE_URL=postgresql://<user>:<password>@127.0.0.1:5432/xport_billing_test pnpm --filter web test:billing
+pnpm check
+pnpm build
+```
+
+The schema adds `user.credit_balance` and `xport_credit_transactions`. A ledger row records each grant/debit and its optional Polar delivery payload. Nitro runs `billing-delivery` every minute; failed or interrupted deliveries retry using the same operation key. `pnpm --filter web credits:deliver` also runs delivery manually. Neither path changes local balances during delivery.
+
+Direct article, thread, user-info, and user-tweets APIs now require `POST` and an `Idempotency-Key` header (1–128 letters, digits, `_`, or `-`). Query parameters are unchanged. Reuse the key only when retrying the same request. The ledger retains the paid direct response so a lost response can be replayed without another fetch or debit. Browser and CLI article callers generate a fresh key per export; existing CLI releases using GET must be updated alongside the server.
+
+## Billing cutover
+
+Prepare and test the release first. This is a single maintenance-window cutover, not parallel Polar/local spending. All script commands require `DATABASE_URL` in the shell; snapshot and delivery additionally use the configured Polar token/environment. Node scripts do not automatically load `.env.local` (use Node's `--env-file` locally if needed).
+
+1. Block new billing requests at the deployment ingress before stopping the old release: the old release does not recognize the maintenance flag. Drain or stop queued/running jobs. Pause manual grants and checkout/signup processing; allow rejected webhooks to retry later.
+2. Apply `pnpm db:migrate`, then start the new release with `BILLING_MAINTENANCE=true`. Keep ingress maintenance active. Do not expose a zero-balance cutover before import.
+3. With `BILLING_MAINTENANCE=true` in the script environment, run `pnpm --filter web credits:migrate snapshot /secure/path/credits.json`. Snapshot collection is read-only and refuses to overwrite an existing file. It fails on unmapped customers instead of guessing by email.
+4. Review every snapshot row. Resolve missing/deleted/duplicate customers explicitly (a genuinely missing customer may use `polarCustomerId: null` and a reviewed opening balance). Wait for in-flight checkouts and Polar meter changes to settle. `includedOrderIds` must list exactly the paid purchases represented in `originalBalance`; late purchases excluded from the balance must be removed from this list so their webhook can grant them. Mark each reviewed row `confirmed: true`. Reconcile any negative Polar balance separately: importing zero locally does not repair it externally.
+5. Run `pnpm --filter web credits:migrate import /secure/path/credits.json`. The import is atomic and replay-safe; it rejects an account with other local ledger activity. Original balances and included order IDs stay in opening-entry metadata, and imports never queue Polar grants.
+6. Run `web/scripts/reconcile-credits.sql`, verify the local balances, then disable maintenance and replay outstanding purchase webhooks. Imported purchase IDs and historical signup grants are skipped. Check pending deliveries and Railway logs after reopening ingress.
+
+For a manual positive adjustment, use a stable operation key and reuse it on retries:
+
+```bash
+pnpm --filter web credits:grant user@example.com 50 "Support adjustment" --key support-ticket-123
+```
+
+Do not edit balances directly or send standalone negative Polar usage events. Reporting behavior follows Polar's [event ingestion API](https://polar.sh/docs/api-reference/events/ingest); purchases use [order.paid](https://polar.sh/docs/api-reference/webhooks/order.paid).

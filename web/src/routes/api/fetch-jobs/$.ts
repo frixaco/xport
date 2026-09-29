@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { auth } from "@/lib/auth";
 import { parseTwitterInput } from "@/lib/url-parser";
-import { assertSufficientCredits } from "@/lib/billing-access";
+import { getBillingUser } from "@/lib/billing-access";
+import { getCreditBalance, BillingAccessError } from "@/lib/credit-ledger";
 import { errorJson, requireTrustedMutation, withApiRouteTelemetry } from "@/lib/api-routes";
 import {
   createFetchJob,
@@ -24,20 +24,17 @@ export const Route = createFileRoute("/api/fetch-jobs/$")({
             const originError = requireTrustedMutation(request);
             if (originError) return originError;
 
-            const session = await auth.api.getSession({ headers: request.headers });
-            telemetry.userId = session?.user.id ?? null;
-            if (!session) {
-              return errorJson("Authentication required.", 401);
-            }
+            const userId = await getBillingUser(request);
+            telemetry.userId = userId;
 
-            let body: { input?: string; mode?: unknown };
+            let body: { input?: unknown; mode?: unknown } | null;
             try {
               body = await request.json();
             } catch {
               return errorJson("Invalid JSON body.", 400);
             }
 
-            const input = body.input?.trim();
+            const input = typeof body?.input === "string" ? body.input.trim() : "";
             if (!input) {
               return errorJson("Missing required field: input.", 400);
             }
@@ -46,11 +43,11 @@ export const Route = createFileRoute("/api/fetch-jobs/$")({
             if (!parsed) {
               return errorJson("Invalid input. Provide a valid tweet URL/ID or username.", 400);
             }
-            const mode = body.mode ?? "posts";
+            const mode = body?.mode ?? "posts";
             if (mode !== "posts" && mode !== "timeline" && mode !== "replies") {
               return errorJson("Invalid mode. Use posts, timeline, or replies.", 400);
             }
-            if (parsed.type === "tweet" && body.mode !== undefined) {
+            if (parsed.type === "tweet" && body?.mode !== undefined) {
               return errorJson("Mode is only valid for account exports.", 400);
             }
 
@@ -66,10 +63,12 @@ export const Route = createFileRoute("/api/fetch-jobs/$")({
             telemetry.requestType = requestType;
             telemetry.inputNormalized = inputNormalized;
 
-            await assertSufficientCredits(request, 1);
+            if ((await getCreditBalance(userId)) < 1) {
+              throw new BillingAccessError("Insufficient credits.", 402, "INSUFFICIENT_CREDITS");
+            }
 
             const jobId = await createFetchJob({
-              ownerUserId: session.user.id,
+              ownerUserId: userId,
               requestType,
               inputRaw: input,
               inputNormalized,
@@ -77,14 +76,14 @@ export const Route = createFileRoute("/api/fetch-jobs/$")({
             telemetry.jobId = jobId;
 
             captureServerEvent("fetch job created", {
-              distinctId: session.user.id,
+              distinctId: userId,
               properties: {
                 job_id: jobId,
                 request_type: requestType,
                 input_normalized: inputNormalized,
               },
             });
-            startFetchJobInBackground(jobId, request.headers);
+            startFetchJobInBackground(jobId);
 
             return Response.json({ jobId }, { status: 201 });
           },

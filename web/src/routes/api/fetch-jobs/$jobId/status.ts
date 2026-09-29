@@ -22,7 +22,7 @@ export const Route = createFileRoute("/api/fetch-jobs/$jobId/status")({
             telemetry.inputNormalized = result.job.inputNormalized;
 
             if (result.job.status === "queued" || result.job.status === "running") {
-              startFetchJobInBackground(params.jobId, request.headers);
+              startFetchJobInBackground(params.jobId);
             }
 
             return Response.json(jobStatusJson(result.job, { includeInput: true }));

@@ -2,38 +2,19 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { bearer } from "better-auth/plugins/bearer";
 import { deviceAuthorization } from "better-auth/plugins/device-authorization";
-import { polar, checkout, portal, usage, webhooks } from "@polar-sh/better-auth";
-import type { WebhookCustomerCreatedPayload } from "@polar-sh/sdk/models/components/webhookcustomercreatedpayload";
+import { polar, checkout, portal, webhooks } from "@polar-sh/better-auth";
+import { assertBillingEnabled, grantSignupCredits } from "./credit-ledger.ts";
+import { grantPurchaseCredits } from "./billing-grants.ts";
+import { creditProducts } from "./billing-products.ts";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import * as schema from "@/db/schema";
 import { db } from "@/lib/db";
 import { captureServerEvent } from "@/lib/server-telemetry";
 import { polarClient } from "./polar";
 
-const USAGE_EVENT_NAME = "usage";
-const SIGNUP_CREDIT_AMOUNT = 50;
 const CLI_CLIENT_ID = "xport-cli";
 const BETTER_AUTH_BASE_URL = process.env.BETTER_AUTH_URL?.replace(/\/+$/, "");
 const DEVICE_VERIFICATION_URI = BETTER_AUTH_BASE_URL ? `${BETTER_AUTH_BASE_URL}/device` : "/device";
-
-async function grantSignupCredits(payload: WebhookCustomerCreatedPayload): Promise<void> {
-  const polarCustomerId = payload.data.id;
-  const externalId = `signup-credit:v1:${polarCustomerId}`;
-
-  await polarClient.events.ingest({
-    events: [
-      {
-        name: USAGE_EVENT_NAME,
-        customerId: polarCustomerId,
-        externalId,
-        metadata: {
-          credits: -SIGNUP_CREDIT_AMOUNT,
-          reason: "signup-credit",
-        },
-      },
-    ],
-  });
-}
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -41,9 +22,23 @@ export const auth = betterAuth({
     schema,
   }),
   databaseHooks: {
+    session: {
+      create: {
+        before: async (createdSession) => {
+          // Recover a signup interrupted after user creation; the ledger key makes this a no-op otherwise.
+          await grantSignupCredits(createdSession.userId);
+          return { data: createdSession };
+        },
+      },
+    },
     user: {
       create: {
+        before: async (createdUser) => {
+          assertBillingEnabled();
+          return { data: createdUser };
+        },
         after: async (createdUser) => {
+          await grantSignupCredits(createdUser.id);
           captureServerEvent("user signed up", {
             distinctId: createdUser.id,
             properties: {
@@ -82,30 +77,14 @@ export const auth = betterAuth({
       createCustomerOnSignUp: true,
       use: [
         checkout({
-          products: [
-            {
-              productId:
-                process.env.POLAR_ENV !== "production"
-                  ? process.env.SANDBOX_POLAR_CREDITS_50_CREDITS_PRODUCT_ID!
-                  : process.env.POLAR_CREDITS_50_CREDITS_PRODUCT_ID!,
-              slug: "credits-125",
-            },
-            {
-              productId:
-                process.env.POLAR_ENV !== "production"
-                  ? process.env.SANDBOX_POLAR_CREDITS_500_CREDITS_PRODUCT_ID!
-                  : process.env.POLAR_CREDITS_500_CREDITS_PRODUCT_ID!,
-              slug: "credits-1250",
-            },
-          ],
+          products: creditProducts(),
           successUrl: `${process.env.BETTER_AUTH_URL}/checkout/success?checkout_id={CHECKOUT_ID}`,
           authenticatedUsersOnly: true,
         }),
         portal(),
-        usage(),
         webhooks({
           secret: process.env.POLAR_WEBHOOK_SECRET!,
-          onCustomerCreated: grantSignupCredits,
+          onOrderPaid: grantPurchaseCredits,
         }),
       ],
     }),

@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { fetchUserInfo, fetchUserTimeline } from "@/lib/x-api";
 import { parseUsername } from "@/lib/url-parser";
-import { assertSufficientCredits } from "@/lib/billing-access";
-import { calculateTweetListCredits, MIN_PREFLIGHT_CREDITS } from "@/lib/credits";
+import { calculateTweetListCredits } from "@/lib/credits";
 import {
   errorJson,
   firstSearchParam,
@@ -14,7 +13,12 @@ import {
 export const Route = createFileRoute("/api/user-tweets")({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: () =>
+        Response.json(
+          { error: "Use POST with an Idempotency-Key header." },
+          { status: 405, headers: { Allow: "POST" } },
+        ),
+      POST: async ({ request }) => {
         return withApiRouteTelemetry(
           request,
           {
@@ -44,29 +48,28 @@ export const Route = createFileRoute("/api/user-tweets")({
             telemetry.inputNormalized = userName;
             const includeReplies = parseBooleanSearchParam(url.searchParams.get("includeReplies"));
             const cursor = url.searchParams.get("cursor") ?? undefined;
-            await assertSufficientCredits(request, MIN_PREFLIGHT_CREDITS);
-            const userInfo = await fetchUserInfo(userName);
-            const data = await fetchUserTimeline(userInfo.data.id, cursor);
-            const tweetCount = Array.isArray(data.data?.tweets) ? data.data.tweets.length : 0;
-            const chargedCredits = calculateTweetListCredits(tweetCount);
-
-            if (includeReplies) {
-              return jsonWithChargedUsage(request, data, { credits: chargedCredits, tweetCount });
-            }
-
-            const tweets = data.data?.tweets ?? [];
-            const filteredTweets = tweets.filter((tweet) => !(tweet.isReply || tweet.inReplyToId));
-
             return jsonWithChargedUsage(
               request,
-              {
-                ...data,
-                data: {
-                  ...data.data,
-                  tweets: filteredTweets,
-                },
+              JSON.stringify(["user-tweets", userName.toLowerCase(), cursor, includeReplies]),
+              async () => {
+                const userInfo = await fetchUserInfo(userName);
+                const data = await fetchUserTimeline(userInfo.data.id, cursor);
+                const tweets = data.data?.tweets ?? [];
+                const tweetCount = tweets.length;
+                return {
+                  payload: includeReplies
+                    ? data
+                    : {
+                        ...data,
+                        data: {
+                          ...data.data,
+                          tweets: tweets.filter((tweet) => !(tweet.isReply || tweet.inReplyToId)),
+                        },
+                      },
+                  credits: calculateTweetListCredits(tweetCount),
+                  tweetCount,
+                };
               },
-              { credits: chargedCredits, tweetCount },
             );
           },
         );

@@ -1,8 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { fetchUserInfo } from "@/lib/x-api";
 import { parseUsername } from "@/lib/url-parser";
-import { assertSufficientCredits } from "@/lib/billing-access";
-import { MIN_PREFLIGHT_CREDITS } from "@/lib/credits";
 import {
   errorJson,
   firstSearchParam,
@@ -13,7 +11,12 @@ import {
 export const Route = createFileRoute("/api/user-info")({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: () =>
+        Response.json(
+          { error: "Use POST with an Idempotency-Key header." },
+          { status: 405, headers: { Allow: "POST" } },
+        ),
+      POST: async ({ request }) => {
         return withApiRouteTelemetry(
           request,
           {
@@ -41,9 +44,14 @@ export const Route = createFileRoute("/api/user-info")({
             }
 
             telemetry.inputNormalized = userName;
-            await assertSufficientCredits(request, MIN_PREFLIGHT_CREDITS);
-            const data = await fetchUserInfo(userName);
-            return jsonWithChargedUsage(request, data, { credits: 1 });
+            return jsonWithChargedUsage(
+              request,
+              `user-info:${userName.toLowerCase()}`,
+              async () => ({
+                payload: await fetchUserInfo(userName),
+                credits: 1,
+              }),
+            );
           },
         );
       },

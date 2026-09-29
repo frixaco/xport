@@ -1,8 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { fetchArticle } from "@/lib/x-api";
 import { parseTweetId } from "@/lib/url-parser";
-import { assertSufficientCredits } from "@/lib/billing-access";
-import { MIN_PREFLIGHT_CREDITS } from "@/lib/credits";
 import {
   errorJson,
   firstSearchParam,
@@ -13,7 +11,12 @@ import {
 export const Route = createFileRoute("/api/article")({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: () =>
+        Response.json(
+          { error: "Use POST with an Idempotency-Key header." },
+          { status: 405, headers: { Allow: "POST" } },
+        ),
+      POST: async ({ request }) => {
         return withApiRouteTelemetry(
           request,
           {
@@ -38,9 +41,10 @@ export const Route = createFileRoute("/api/article")({
             }
 
             telemetry.inputNormalized = tweetId;
-            await assertSufficientCredits(request, MIN_PREFLIGHT_CREDITS);
-            const data = await fetchArticle(tweetId);
-            return jsonWithChargedUsage(request, data, { credits: 1 });
+            return jsonWithChargedUsage(request, `article:${tweetId}`, async () => ({
+              payload: await fetchArticle(tweetId),
+              credits: 1,
+            }));
           },
         );
       },
