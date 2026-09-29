@@ -6,16 +6,16 @@ import { validateHomeSearch } from "@/components/the-input/search";
 import { AuthErrorToast } from "@/components/auth-error-toast";
 import { CheckoutToast } from "@/components/checkout-toast";
 import { ProductDemo } from "@/components/product-demo";
+import { SiteFooter } from "@/components/site-footer";
 import { getSiteUrl, SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_TITLE } from "@/lib/seo";
 
 export const Route = createFileRoute("/")({
   validateSearch: validateHomeSearch,
   head: () => ({
-    title: SITE_TITLE,
     meta: [
+      { title: SITE_TITLE },
       { name: "description", content: SITE_DESCRIPTION },
       { name: "keywords", content: SITE_KEYWORDS.join(", ") },
-      { rel: "canonical", href: "/" },
       { property: "og:type", content: "website" },
       { property: "og:url", content: getSiteUrl() },
       { property: "og:site_name", content: SITE_NAME },
@@ -25,6 +25,7 @@ export const Route = createFileRoute("/")({
       { name: "twitter:title", content: SITE_TITLE },
       { name: "twitter:description", content: SITE_DESCRIPTION },
     ],
+    links: [{ rel: "canonical", href: getSiteUrl() }],
   }),
   component: HomePage,
 });
@@ -70,6 +71,7 @@ function HomePage() {
         </div>
         <ProductDemo />
       </main>
+      <SiteFooter />
     </div>
   );
 }

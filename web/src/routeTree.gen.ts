@@ -9,6 +9,9 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SaveXArticlesRouteImport } from './routes/save-x-articles'
+import { Route as ExportXThreadsRouteImport } from './routes/export-x-threads'
+import { Route as ExportXPostsRouteImport } from './routes/export-x-posts'
 import { Route as DeviceRouteImport } from './routes/device'
 import { Route as AuthErrorRouteImport } from './routes/auth-error'
 import { Route as IndexRouteImport } from './routes/index'
@@ -26,6 +29,21 @@ import { Route as ApiFetchJobsJobIdTweetsRouteImport } from './routes/api/fetch-
 import { Route as ApiFetchJobsJobIdStopRouteImport } from './routes/api/fetch-jobs/$jobId/stop'
 import { Route as ApiFetchJobsJobIdStatusRouteImport } from './routes/api/fetch-jobs/$jobId/status'
 
+const SaveXArticlesRoute = SaveXArticlesRouteImport.update({
+  id: '/save-x-articles',
+  path: '/save-x-articles',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExportXThreadsRoute = ExportXThreadsRouteImport.update({
+  id: '/export-x-threads',
+  path: '/export-x-threads',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExportXPostsRoute = ExportXPostsRouteImport.update({
+  id: '/export-x-posts',
+  path: '/export-x-posts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DeviceRoute = DeviceRouteImport.update({
   id: '/device',
   path: '/device',
@@ -111,6 +129,9 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth-error': typeof AuthErrorRoute
   '/device': typeof DeviceRoute
+  '/export-x-posts': typeof ExportXPostsRoute
+  '/export-x-threads': typeof ExportXThreadsRoute
+  '/save-x-articles': typeof SaveXArticlesRoute
   '/$sourceHost/$': typeof SourceHostSplatRoute
   '/api/article': typeof ApiArticleRoute
   '/api/thread': typeof ApiThreadRoute
@@ -129,6 +150,9 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth-error': typeof AuthErrorRoute
   '/device': typeof DeviceRoute
+  '/export-x-posts': typeof ExportXPostsRoute
+  '/export-x-threads': typeof ExportXThreadsRoute
+  '/save-x-articles': typeof SaveXArticlesRoute
   '/$sourceHost/$': typeof SourceHostSplatRoute
   '/api/article': typeof ApiArticleRoute
   '/api/thread': typeof ApiThreadRoute
@@ -148,6 +172,9 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/auth-error': typeof AuthErrorRoute
   '/device': typeof DeviceRoute
+  '/export-x-posts': typeof ExportXPostsRoute
+  '/export-x-threads': typeof ExportXThreadsRoute
+  '/save-x-articles': typeof SaveXArticlesRoute
   '/$sourceHost/$': typeof SourceHostSplatRoute
   '/api/article': typeof ApiArticleRoute
   '/api/thread': typeof ApiThreadRoute
@@ -168,6 +195,9 @@ export interface FileRouteTypes {
     | '/'
     | '/auth-error'
     | '/device'
+    | '/export-x-posts'
+    | '/export-x-threads'
+    | '/save-x-articles'
     | '/$sourceHost/$'
     | '/api/article'
     | '/api/thread'
@@ -186,6 +216,9 @@ export interface FileRouteTypes {
     | '/'
     | '/auth-error'
     | '/device'
+    | '/export-x-posts'
+    | '/export-x-threads'
+    | '/save-x-articles'
     | '/$sourceHost/$'
     | '/api/article'
     | '/api/thread'
@@ -204,6 +237,9 @@ export interface FileRouteTypes {
     | '/'
     | '/auth-error'
     | '/device'
+    | '/export-x-posts'
+    | '/export-x-threads'
+    | '/save-x-articles'
     | '/$sourceHost/$'
     | '/api/article'
     | '/api/thread'
@@ -223,6 +259,9 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthErrorRoute: typeof AuthErrorRoute
   DeviceRoute: typeof DeviceRoute
+  ExportXPostsRoute: typeof ExportXPostsRoute
+  ExportXThreadsRoute: typeof ExportXThreadsRoute
+  SaveXArticlesRoute: typeof SaveXArticlesRoute
   SourceHostSplatRoute: typeof SourceHostSplatRoute
   ApiArticleRoute: typeof ApiArticleRoute
   ApiThreadRoute: typeof ApiThreadRoute
@@ -240,6 +279,27 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/save-x-articles': {
+      id: '/save-x-articles'
+      path: '/save-x-articles'
+      fullPath: '/save-x-articles'
+      preLoaderRoute: typeof SaveXArticlesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/export-x-threads': {
+      id: '/export-x-threads'
+      path: '/export-x-threads'
+      fullPath: '/export-x-threads'
+      preLoaderRoute: typeof ExportXThreadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/export-x-posts': {
+      id: '/export-x-posts'
+      path: '/export-x-posts'
+      fullPath: '/export-x-posts'
+      preLoaderRoute: typeof ExportXPostsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/device': {
       id: '/device'
       path: '/device'
@@ -359,6 +419,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthErrorRoute: AuthErrorRoute,
   DeviceRoute: DeviceRoute,
+  ExportXPostsRoute: ExportXPostsRoute,
+  ExportXThreadsRoute: ExportXThreadsRoute,
+  SaveXArticlesRoute: SaveXArticlesRoute,
   SourceHostSplatRoute: SourceHostSplatRoute,
   ApiArticleRoute: ApiArticleRoute,
   ApiThreadRoute: ApiThreadRoute,

@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /device
+Disallow: /auth-error
+Disallow: /checkout/
+
+Sitemap: https://xport.frixaco.com/sitemap.xml

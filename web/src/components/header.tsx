@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { LoaderCircle, LogOut } from "lucide-react";
 import { usePostHog } from "@posthog/react";
 import { Button } from "@/components/ui/button";
@@ -128,7 +129,11 @@ export function Header() {
 
   return (
     <header className="flex items-center justify-between px-6 py-3">
-      <div className="flex items-center gap-2 text-lg font-bold tracking-tight">
+      <Link
+        to="/"
+        className="flex items-center gap-2 text-lg font-bold tracking-tight"
+        aria-label="Xport home"
+      >
         <svg viewBox="0 0 512 512" fill="none" className="size-7" aria-hidden="true">
           <defs>
             <linearGradient
@@ -171,7 +176,8 @@ export function Header() {
             fill="none"
           />
         </svg>
-      </div>
+        <span>Xport</span>
+      </Link>
 
       <div className="flex items-center gap-3">
         <ModeToggle />
