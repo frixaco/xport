@@ -259,6 +259,9 @@ export function ResultDisplay({
         )}
       </div>
       <div
+        role="region"
+        aria-label="Export preview"
+        tabIndex={0}
         className="h-104 w-full overflow-auto md:h-152"
         onScroll={onLoadMore ? handleScroll : undefined}
       >
@@ -381,17 +384,12 @@ function renderBlockHtml(text: string, type: string | undefined): string {
   if (type === "header-one" || type === "header-two" || type === "header-three") {
     return escapeHtml(text);
   }
-  const html = text
+  return escapeHtml(text)
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/_(.+?)_/g, "<em>$1</em>")
     .replace(/~~(.+?)~~/g, "<del>$1</del>")
     .replace(/`(.+?)`/g, "<code>$1</code>")
-    .replace(/<u>(.+?)<\/u>/g, "<u>$1</u>");
-  const escaped = escapeHtml(text);
-  if (html !== escaped) {
-    return html;
-  }
-  return escapeHtml(text);
+    .replace(/&lt;u&gt;(.+?)&lt;\/u&gt;/g, "<u>$1</u>");
 }
 
 function escapeHtml(text: string): string {

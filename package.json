@@ -18,7 +18,10 @@
     "check": "pnpm run format:check && pnpm run lint",
     "db:migrate": "pnpm --filter web db:migrate",
     "db:generate": "pnpm --filter web db:generate",
-    "knip": "knip"
+    "knip": "knip",
+    "test": "pnpm --filter web test",
+    "test:live": "pnpm --filter web test:live",
+    "test:oauth": "pnpm --filter web test:oauth"
   },
   "devDependencies": {
     "@types/node": "^24",

@@ -1,8 +1,8 @@
 import { ArrowRight, Check } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouteContext } from "@tanstack/react-router";
 import { Header } from "@/components/header";
 import { SiteFooter } from "@/components/site-footer";
-import { getSiteUrl, SITE_NAME } from "@/lib/seo";
+import { SITE_NAME } from "@/lib/seo";
 
 export interface SeoLandingPageContent {
   path: string;
@@ -15,7 +15,8 @@ export interface SeoLandingPageContent {
 }
 
 export function SeoLandingPage({ content }: { content: SeoLandingPageContent }) {
-  const pageUrl = `${getSiteUrl()}${content.path}`;
+  const { siteUrl } = useRouteContext({ from: "__root__" });
+  const pageUrl = `${siteUrl}${content.path}`;
   const structuredData = [
     {
       "@context": "https://schema.org",
@@ -23,7 +24,7 @@ export function SeoLandingPage({ content }: { content: SeoLandingPageContent }) 
       name: content.heading,
       url: pageUrl,
       description: content.intro,
-      isPartOf: { "@type": "WebSite", name: SITE_NAME, url: getSiteUrl() },
+      isPartOf: { "@type": "WebSite", name: SITE_NAME, url: siteUrl },
       inLanguage: "en-US",
     },
     {

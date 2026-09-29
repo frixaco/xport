@@ -6,9 +6,12 @@ import { PostHogProvider } from "@posthog/react";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 
+import { getSiteUrl } from "@/lib/seo";
+
 const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com";
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  beforeLoad: async () => ({ siteUrl: await getSiteUrl() }),
   loader: () => ({
     posthog: {
       apiKey: process.env.PUBLIC_POSTHOG_KEY ?? "",

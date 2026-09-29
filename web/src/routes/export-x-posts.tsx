@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SeoLandingPage, type SeoLandingPageContent } from "@/components/seo-landing-page";
-import { getSiteUrl, SITE_NAME } from "@/lib/seo";
+import { SITE_NAME } from "@/lib/seo";
 
 const title = "Export X (ex-Twitter) Posts to Markdown or JSON | Xport";
 const description =
@@ -70,12 +70,13 @@ const content: SeoLandingPageContent = {
 };
 
 export const Route = createFileRoute("/export-x-posts")({
-  head: () => ({
+  loader: ({ context }) => context.siteUrl,
+  head: ({ loaderData: siteUrl }) => ({
     meta: [
       { title },
       { name: "description", content: description },
       { property: "og:type", content: "website" },
-      { property: "og:url", content: `${getSiteUrl()}${path}` },
+      { property: "og:url", content: `${siteUrl}${path}` },
       { property: "og:site_name", content: SITE_NAME },
       { property: "og:title", content: title },
       { property: "og:description", content: description },
@@ -83,7 +84,7 @@ export const Route = createFileRoute("/export-x-posts")({
       { name: "twitter:title", content: title },
       { name: "twitter:description", content: description },
     ],
-    links: [{ rel: "canonical", href: `${getSiteUrl()}${path}` }],
+    links: [{ rel: "canonical", href: `${siteUrl}${path}` }],
   }),
   component: () => <SeoLandingPage content={content} />,
 });

@@ -159,7 +159,7 @@ export function TheInput({ search }: { search: HomeSearch }) {
       : isLoading
         ? "Fetching"
         : "Submit";
-  const exportActionsDisabled = isLoading || isJobActive || isStopRequested;
+  const exportActionsDisabled = !showExportActions || isStopRequested;
   const showJobStatusRow =
     Boolean(activeJob) || (showResultLayout && (isLoading || showExportActions || Boolean(error)));
   const resultIsArticle = displayedResult?.kind === "article";

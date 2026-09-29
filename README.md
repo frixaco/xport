@@ -172,16 +172,32 @@ Older local extraction scripts in `cli/` talk to the upstream API directly and r
 
 MIT.
 
-## Local billing verification
-
-Use a dedicated local PostgreSQL database whose name ends in `_test`. The test runner applies migrations and removes its own test users afterward. It runs the real HTTP routes on port 3108 with a local upstream stub; no live X or Polar credentials are needed.
+## Automated tests
 
 ```bash
-pnpm --filter @frixaco/xport build
-DATABASE_URL=postgresql://<user>:<password>@127.0.0.1:5432/xport_billing_test pnpm --filter web test:billing
+pnpm --filter web exec playwright install chromium  # once per machine
+pnpm test                    # logic + PostgreSQL + HTTP/CLI + browser, no provider credentials
+pnpm test:live               # real X API + Polar sandbox checkout/webhook/delivery
+pnpm test:oauth              # real GitHub/Google login using signed-in Helium on :9222
 pnpm check
-pnpm build
 ```
+
+Docker must be running. Test commands build the app and use a disposable PostgreSQL database, removed on exit. Run them sequentially because they share build output. Keep ports 3108/3210/3211 free for routine tests and 3000 for live/OAuth tests (`XPORT_TEST_PORT` overrides it).
+
+The routine suite covers exports/downloads, stop/reload/recovery, billing, access controls, OAuth callbacks, CLI flows, and public UI. It uses real app routes and PostgreSQL with mocked providers. GitHub Actions runs this suite on pushes/PRs; browser coverage is Chromium, including a mobile viewport.
+
+- **Live:** Set sandbox Polar and X API credentials in `web/.env.local` with `POLAR_ENV=sandbox`. Disposable customers use aliases from `XPORT_TEST_EMAIL` or the first local database user's email; personal credits are not spent. Tests cover real exports and checkout/webhook/delivery, capped at 50 X API calls. Full exports use `@frixaco`; stop/reload checks save at most two pages. Test customers are deleted; sandbox orders remain.
+- **OAuth:** Set OAuth credentials and the sandbox token in `web/.env.local`. Use signed-in Helium on `http://127.0.0.1:9222` (`XPORT_BROWSER_CDP` overrides it), with callbacks registered at `http://localhost:3000/api/auth/callback/github` and `/google`. Update callbacks if changing the port. Tests restore localhost auth cookies afterward; avoid another localhost Better Auth app during the run. Expired sessions or MFA may need interaction.
+
+Reports are in `web/playwright-report/`; failure traces/screenshots are in `web/test-results/`. Artifacts may contain private data and are ignored by Git. OAuth capture is disabled for the personal browser. Live and OAuth tests run explicitly, outside CI.
+
+For a focused billing-only run against a manually provisioned local `*_test` database:
+
+```bash
+DATABASE_URL=postgresql://<user>:<password>@127.0.0.1:5432/xport_billing_test pnpm --filter web test:billing
+```
+
+## Credit ledger
 
 The schema adds `user.credit_balance` and `xport_credit_transactions`. A ledger row records each grant/debit and its optional Polar delivery payload. Nitro runs `billing-delivery` every minute; failed or interrupted deliveries retry using the same operation key. `pnpm --filter web credits:deliver` also runs delivery manually. Neither path changes local balances during delivery.
 

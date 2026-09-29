@@ -1,3 +1,5 @@
+import { createServerFn } from "@tanstack/react-start";
+
 const LOCAL_DEV_SITE_URL = "http://localhost:3000";
 
 function normalizeOrigin(value: string): string | null {
@@ -16,7 +18,7 @@ function normalizeOrigin(value: string): string | null {
   }
 }
 
-export function getSiteUrl(): string {
+export const getSiteUrl = createServerFn({ method: "GET" }).handler(() => {
   const candidates = [process.env.SITE_URL, process.env.BETTER_AUTH_URL];
 
   for (const candidate of candidates) {
@@ -27,7 +29,7 @@ export function getSiteUrl(): string {
   }
 
   return LOCAL_DEV_SITE_URL;
-}
+});
 
 export const SITE_NAME = "Xport";
 export const SITE_TITLE = "Xport | Export X (ex-Twitter) Posts, Threads, and Articles";

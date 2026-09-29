@@ -7,17 +7,18 @@ import { AuthErrorToast } from "@/components/auth-error-toast";
 import { CheckoutToast } from "@/components/checkout-toast";
 import { ProductDemo } from "@/components/product-demo";
 import { SiteFooter } from "@/components/site-footer";
-import { getSiteUrl, SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_TITLE } from "@/lib/seo";
+import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_TITLE } from "@/lib/seo";
 
 export const Route = createFileRoute("/")({
   validateSearch: validateHomeSearch,
-  head: () => ({
+  loader: ({ context }) => context.siteUrl,
+  head: ({ loaderData: siteUrl }) => ({
     meta: [
       { title: SITE_TITLE },
       { name: "description", content: SITE_DESCRIPTION },
       { name: "keywords", content: SITE_KEYWORDS.join(", ") },
       { property: "og:type", content: "website" },
-      { property: "og:url", content: getSiteUrl() },
+      { property: "og:url", content: siteUrl },
       { property: "og:site_name", content: SITE_NAME },
       { property: "og:title", content: SITE_TITLE },
       { property: "og:description", content: SITE_DESCRIPTION },
@@ -25,14 +26,14 @@ export const Route = createFileRoute("/")({
       { name: "twitter:title", content: SITE_TITLE },
       { name: "twitter:description", content: SITE_DESCRIPTION },
     ],
-    links: [{ rel: "canonical", href: getSiteUrl() }],
+    links: [{ rel: "canonical", href: siteUrl }],
   }),
   component: HomePage,
 });
 
 function HomePage() {
   const search = Route.useSearch();
-  const siteUrl = getSiteUrl();
+  const { siteUrl } = Route.useRouteContext();
   const structuredData = [
     {
       "@context": "https://schema.org",

@@ -53,7 +53,12 @@ function normalizeUsername(raw: string): string | null {
 }
 
 function parseUserSegment(segment: string): string | null {
-  const decoded = decodeURIComponent(segment);
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(segment);
+  } catch {
+    return null;
+  }
   if (RESERVED_PATH_SEGMENTS.has(decoded.toLowerCase())) return null;
   return normalizeUsername(decoded);
 }

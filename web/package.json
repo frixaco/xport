@@ -18,7 +18,10 @@
     "lint:fix": "oxlint --fix --ignore-path ../.gitignore --ignore-pattern src/routeTree.gen.ts .",
     "credits:deliver": "node scripts/deliver-credits.mjs",
     "credits:migrate": "node scripts/migrate-credits.mjs",
-    "test:billing": "pnpm --filter @frixaco/xport build && node --test test/billing.test.ts"
+    "test:billing": "pnpm --filter @frixaco/xport build && node --test test/billing.test.ts",
+    "test": "node test/run.mjs",
+    "test:live": "node test/run.mjs --live",
+    "test:oauth": "node test/run.mjs --oauth"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -50,6 +53,7 @@
     "tw-animate-css": "^1.4.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/vite": "^4.3.1",
     "@types/node": "^24",
     "@types/pg": "^8.20.0",
