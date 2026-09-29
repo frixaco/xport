@@ -8,8 +8,8 @@ const seoLinks = [
 
 export function SiteFooter() {
   return (
-    <footer className="border-t px-6 py-8">
-      <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 text-sm sm:flex-row">
+    <footer className="flex justify-center border-t px-6 py-8">
+      <div className="flex w-full max-w-6xl flex-col items-center justify-between gap-4 text-sm sm:flex-row">
         <Link to="/" className="font-semibold tracking-tight">
           Xport
         </Link>

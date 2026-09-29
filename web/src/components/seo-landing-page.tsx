@@ -45,20 +45,24 @@ export function SeoLandingPage({ content }: { content: SeoLandingPageContent }) 
       />
       <Header />
       <main className="flex-1">
-        <section className="border-y bg-muted/20 px-6 py-16 sm:py-24">
-          <div className="mx-auto max-w-4xl text-center">
-            <p className="text-xs font-semibold tracking-widest text-chart-2 uppercase">
-              {content.eyebrow}
-            </p>
-            <h1 className="mt-4 text-3xl font-bold tracking-tight text-balance sm:text-5xl">
-              {content.heading}
-            </h1>
-            <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-              {content.intro}
-            </p>
+        <section className="flex justify-center border-y bg-muted/20 px-6 py-16 sm:py-24">
+          <div className="flex w-full max-w-4xl flex-col items-center gap-8 text-center">
+            <div className="flex flex-col items-center gap-5">
+              <div className="flex flex-col items-center gap-4">
+                <p className="text-xs font-semibold tracking-widest text-chart-2 uppercase">
+                  {content.eyebrow}
+                </p>
+                <h1 className="text-3xl font-bold tracking-tight text-balance sm:text-5xl">
+                  {content.heading}
+                </h1>
+              </div>
+              <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
+                {content.intro}
+              </p>
+            </div>
             <Link
               to="/"
-              className="mt-8 inline-flex h-11 items-center gap-2 rounded-4xl bg-primary px-6 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-80"
+              className="inline-flex h-11 items-center gap-2 rounded-4xl bg-primary px-6 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-80"
             >
               Try Xport
               <ArrowRight className="size-4" />
@@ -66,17 +70,19 @@ export function SeoLandingPage({ content }: { content: SeoLandingPageContent }) 
           </div>
         </section>
 
-        <section className="px-6 py-14 sm:py-20" aria-labelledby="how-it-works">
-          <div className="mx-auto max-w-5xl">
+        <section className="flex justify-center px-6 py-14 sm:py-20" aria-labelledby="how-it-works">
+          <div className="flex w-full max-w-5xl flex-col gap-8">
             <h2 id="how-it-works" className="text-2xl font-semibold tracking-tight sm:text-3xl">
               How it works
             </h2>
-            <ol className="mt-8 grid gap-4 md:grid-cols-3">
+            <ol className="grid gap-4 md:grid-cols-3">
               {content.steps.map((step, index) => (
-                <li key={step.title} className="border bg-background p-5">
+                <li key={step.title} className="flex flex-col gap-3 border bg-background p-5 pt-7">
                   <span className="text-xs font-semibold text-chart-2">0{index + 1}</span>
-                  <h3 className="mt-3 font-semibold">{step.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{step.description}</p>
+                  <div className="flex flex-col gap-2">
+                    <h3 className="font-semibold">{step.title}</h3>
+                    <p className="text-sm leading-6 text-muted-foreground">{step.description}</p>
+                  </div>
                 </li>
               ))}
             </ol>
@@ -84,22 +90,22 @@ export function SeoLandingPage({ content }: { content: SeoLandingPageContent }) 
         </section>
 
         <section
-          className="border-y bg-muted/20 px-6 py-14 sm:py-20"
+          className="flex justify-center border-y bg-muted/20 px-6 py-14 sm:py-20"
           aria-labelledby="what-you-get"
         >
-          <div className="mx-auto max-w-5xl">
+          <div className="flex w-full max-w-5xl flex-col gap-8">
             <h2 id="what-you-get" className="text-2xl font-semibold tracking-tight sm:text-3xl">
               What you get
             </h2>
-            <div className="mt-8 grid gap-6 sm:grid-cols-2">
+            <div className="grid gap-6 sm:grid-cols-2">
               {content.benefits.map((benefit) => (
                 <article key={benefit.title} className="flex gap-3">
-                  <Check className="mt-0.5 size-5 shrink-0 text-chart-2" />
-                  <div>
+                  <span className="flex h-6 shrink-0 items-center text-chart-2">
+                    <Check className="size-5" />
+                  </span>
+                  <div className="flex flex-col gap-1">
                     <h3 className="font-semibold">{benefit.title}</h3>
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      {benefit.description}
-                    </p>
+                    <p className="text-sm leading-6 text-muted-foreground">{benefit.description}</p>
                   </div>
                 </article>
               ))}
@@ -107,30 +113,35 @@ export function SeoLandingPage({ content }: { content: SeoLandingPageContent }) 
           </div>
         </section>
 
-        <section className="px-6 py-14 sm:py-20" aria-labelledby="faq">
-          <div className="mx-auto max-w-3xl">
+        <section className="flex justify-center px-6 py-14 sm:py-20" aria-labelledby="faq">
+          <div className="flex w-full max-w-3xl flex-col gap-8">
             <h2 id="faq" className="text-2xl font-semibold tracking-tight sm:text-3xl">
               Frequently asked questions
             </h2>
-            <div className="mt-8 divide-y border-y">
+            <div className="divide-y border-y">
               {content.faqs.map((faq) => (
-                <article key={faq.question} className="py-5">
+                <article key={faq.question} className="flex flex-col gap-2 py-5">
                   <h3 className="font-semibold">{faq.question}</h3>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{faq.answer}</p>
+                  <p className="text-sm leading-6 text-muted-foreground">{faq.answer}</p>
                 </article>
               ))}
             </div>
           </div>
         </section>
 
-        <section className="border-t bg-muted/20 px-6 py-14 text-center">
-          <h2 className="text-2xl font-semibold tracking-tight">Ready to make a portable copy?</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Paste a public X (ex-Twitter) URL or username and preview the result before downloading.
-          </p>
+        <section className="flex flex-col items-center gap-6 border-t bg-muted/20 px-6 py-14 text-center">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-2xl font-semibold tracking-tight">
+              Ready to make a portable copy?
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Paste a public X (ex-Twitter) URL or username and preview the result before
+              downloading.
+            </p>
+          </div>
           <Link
             to="/"
-            className="mt-6 inline-flex h-11 items-center gap-2 rounded-4xl bg-primary px-6 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-80"
+            className="inline-flex h-11 items-center gap-2 rounded-4xl bg-primary px-6 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-80"
           >
             Start an export
             <ArrowRight className="size-4" />
