@@ -28,7 +28,11 @@ export const Route = createFileRoute("/api/checkout/status")({
               return errorJson("Missing checkout ID", 400);
             }
 
-            if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(checkoutId)) {
+            if (
+              !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+                checkoutId,
+              )
+            ) {
               return errorJson("Checkout not found.", 404);
             }
 
