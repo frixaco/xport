@@ -28,6 +28,10 @@ export const Route = createFileRoute("/api/checkout/status")({
               return errorJson("Missing checkout ID", 400);
             }
 
+            if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(checkoutId)) {
+              return errorJson("Checkout not found.", 404);
+            }
+
             const checkout = await getCheckouts(polarClient)(checkoutId).catch((error) => {
               if (
                 typeof error === "object" &&

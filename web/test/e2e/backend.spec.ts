@@ -38,6 +38,7 @@ test("ownership, expired results, CSRF and unauthenticated API access", async ({
     ).toBe(403);
     expect((await stranger.post("/api/article?input=123")).status()).toBe(401);
     expect((await page.request.get("/api/checkout/status?id=nonexistent")).status()).toBe(404);
+    expect((await page.request.get(`/api/checkout/status?id=${randomUUID()}`)).status()).toBe(404);
     await db.query(
       "UPDATE xport_fetch_jobs SET owner_user_id=$1,expires_at=now()-interval '1 hour' WHERE id=$2",
       [account.id, id],
