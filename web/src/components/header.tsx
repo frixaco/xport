@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { LoaderCircle, LogOut } from "lucide-react";
+import { ArrowUpRight, LoaderCircle, LogOut, Terminal } from "lucide-react";
 import { usePostHog } from "@posthog/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -128,7 +128,7 @@ export function Header() {
   }, [posthog, user?.id]);
 
   return (
-    <header className="flex items-center justify-between px-6 py-3">
+    <header className="relative flex items-center justify-between px-6 py-3">
       <Link
         to="/"
         className="flex items-center gap-2 text-lg font-bold tracking-tight"
@@ -178,6 +178,17 @@ export function Header() {
         </svg>
         <span>Xport</span>
       </Link>
+
+      <a
+        href="https://github.com/frixaco/xport#cli"
+        target="_blank"
+        rel="noreferrer"
+        className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 lg:inline-flex"
+      >
+        <Terminal className="size-4" aria-hidden="true" />
+        <span>Prefer the terminal? Try Xport CLI</span>
+        <ArrowUpRight className="size-3.5" aria-hidden="true" />
+      </a>
 
       <div className="flex items-center gap-3">
         <ModeToggle />

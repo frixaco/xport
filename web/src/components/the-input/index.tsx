@@ -1,6 +1,7 @@
 import {
   ArrowLeft,
   ArrowRight,
+  ArrowUpRight,
   Check,
   ChevronDown,
   Copy,
@@ -195,6 +196,27 @@ export function TheInput({ search }: { search: HomeSearch }) {
             </span>{" "}
             in <span className="whitespace-nowrap">Markdown/JSON</span>
           </h1>
+          <aside
+            aria-label="Xport CLI example"
+            className="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs text-muted-foreground"
+          >
+            <span>Or use the CLI</span>
+            <code className="min-w-0 rounded-md bg-muted/60 px-2.5 py-1.5 font-mono break-all text-foreground/80">
+              <span className="mr-2 text-muted-foreground select-none" aria-hidden="true">
+                $
+              </span>
+              npx @frixaco/xport export @frixaco
+            </code>
+            <a
+              href="https://github.com/frixaco/xport#cli"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-4"
+            >
+              Docs
+              <ArrowUpRight className="size-3.5" aria-hidden="true" />
+            </a>
+          </aside>
         </div>
       )}
 
