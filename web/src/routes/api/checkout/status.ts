@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { getCheckouts } from "@polar-sh/sdk/2026-10/services/checkouts";
 import { polarClient } from "@/lib/polar";
 import { errorJson, withApiRouteTelemetry } from "@/lib/api-routes";
 import { auth } from "@/lib/auth";
@@ -27,7 +28,7 @@ export const Route = createFileRoute("/api/checkout/status")({
               return errorJson("Missing checkout ID", 400);
             }
 
-            const checkout = await polarClient.checkouts.get({ id: checkoutId }).catch((error) => {
+            const checkout = await getCheckouts(polarClient)(checkoutId).catch((error) => {
               if (
                 typeof error === "object" &&
                 error !== null &&
@@ -38,7 +39,7 @@ export const Route = createFileRoute("/api/checkout/status")({
               }
               throw error;
             });
-            if (!checkout || checkout.externalCustomerId !== session.user.id) {
+            if (!checkout || checkout.external_customer_id !== session.user.id) {
               return errorJson("Checkout not found.", 404);
             }
 

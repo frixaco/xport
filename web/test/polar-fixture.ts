@@ -4,6 +4,7 @@ export function paidOrder(id: string, productId = "product-test", orderId = rand
     timestamp = String(Math.floor(Date.now() / 1000));
   const body = JSON.stringify({
     type: "order.paid",
+    api_version: "2026-10",
     timestamp: new Date().toISOString(),
     data: {
       id: orderId,

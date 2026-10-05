@@ -5,7 +5,7 @@ export async function startPolarRelay(token, organizationId, forwardUrl, signal)
   const stream = (async () => {
     while (!signal.aborted) {
       const response = await fetch(`https://sandbox-api.polar.sh/v1/cli/listen/${organizationId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, "Polar-Version": "2026-10" },
         signal,
       });
       if (!response.ok) throw new Error(`Polar webhook relay returned ${response.status}`);

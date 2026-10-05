@@ -5,7 +5,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
 import { Pool } from "pg";
-import { Polar } from "@polar-sh/sdk";
+import { createPolar } from "@polar-sh/sdk/2026-10";
 import { startPolarRelay } from "./polar-relay.mjs";
 import { fileURLToPath } from "node:url";
 
@@ -140,35 +140,34 @@ try {
   }
   if (live) {
     await run("pnpm", ["db:migrate"]);
-    const polar = new Polar({ accessToken: env.SANDBOX_POLAR_ACCESS_TOKEN, server: "sandbox" });
+    const polar = createPolar({
+      accessToken: env.SANDBOX_POLAR_ACCESS_TOKEN,
+      environment: "sandbox",
+    });
     if (oauth) {
       // Reuse provider identities, never reassign an existing Polar customer to a new user ID.
       const target = new Pool({ connectionString: env.DATABASE_URL });
       try {
-        for await (const page of await polar.customers.list({ limit: 100 })) {
-          for (const customer of page.result.items) {
-            if (!customer.externalId || customer.metadata.xport_test || customer.deletedAt)
-              continue;
-            await target.query(
-              'INSERT INTO "user"(id,name,email,email_verified) VALUES($1,$2,$3,true) ON CONFLICT DO NOTHING',
-              [customer.externalId, customer.name || "Test account", customer.email],
-            );
-            await target.query(
-              "INSERT INTO xport_credit_transactions(operation_key,user_id,amount,type) VALUES($1,$2,0,'opening') ON CONFLICT DO NOTHING",
-              [`polar-opening-balance:v1:${customer.externalId}`, customer.externalId],
-            );
-          }
+        for await (const customer of polar.customers.iterList({ limit: 100 })) {
+          if (!customer.external_id || customer.metadata.xport_test || customer.deleted_at)
+            continue;
+          await target.query(
+            'INSERT INTO "user"(id,name,email,email_verified) VALUES($1,$2,$3,true) ON CONFLICT DO NOTHING',
+            [customer.external_id, customer.name || "Test account", customer.email],
+          );
+          await target.query(
+            "INSERT INTO xport_credit_transactions(operation_key,user_id,amount,type) VALUES($1,$2,0,'opening') ON CONFLICT DO NOTHING",
+            [`polar-opening-balance:v1:${customer.external_id}`, customer.external_id],
+          );
         }
       } finally {
         await target.end();
       }
     } else {
-      const product = await polar.products.get({
-        id: env.SANDBOX_POLAR_CREDITS_50_CREDITS_PRODUCT_ID,
-      });
+      const product = await polar.products.get(env.SANDBOX_POLAR_CREDITS_50_CREDITS_PRODUCT_ID);
       const relay = await startPolarRelay(
         env.SANDBOX_POLAR_ACCESS_TOKEN,
-        product.organizationId,
+        product.organization_id,
         `${env.BETTER_AUTH_URL}/api/auth/polar/webhooks`,
         abort.signal,
       );

@@ -27,7 +27,7 @@ import { deliverCreditReports } from "../src/lib/billing-delivery.ts";
 import { grantPurchaseCredits } from "../src/lib/billing-grants.ts";
 import { settleDirectResult } from "../src/lib/direct-billing.ts";
 import type { XPost } from "../src/lib/x-api.ts";
-import type { WebhookOrderPaidPayload } from "@polar-sh/sdk/models/components/webhookorderpaidpayload";
+import type { webhooks } from "@polar-sh/sdk/2026-10";
 
 const database = new URL(process.env.DATABASE_URL!);
 assert.ok(
@@ -286,11 +286,11 @@ test("PostgreSQL billing and local HTTP exports", { timeout: 180_000 }, async (t
         const paid = {
           data: {
             id: randomUUID(),
-            productId: "product-test",
+            product_id: "product-test",
             paid: true,
-            customer: { externalId: id },
+            customer: { external_id: id },
           },
-        } as WebhookOrderPaidPayload;
+        } as webhooks.WebhookOrderPaidPayload;
         await Promise.all([grantPurchaseCredits(paid), grantPurchaseCredits(paid)]);
         assert.equal(await getCreditBalance(id), 175);
         const manual = () =>
@@ -318,11 +318,11 @@ test("PostgreSQL billing and local HTTP exports", { timeout: 180_000 }, async (t
         await grantSignupCredits(imported);
         await grantPurchaseCredits({
           ...paid,
-          data: { ...paid.data, customer: { ...paid.data.customer, externalId: imported } },
+          data: { ...paid.data, customer: { ...paid.data.customer, external_id: imported } },
         });
         assert.equal(await getCreditBalance(imported), 72);
         await assert.rejects(
-          grantPurchaseCredits({ ...paid, data: { ...paid.data, productId: "unknown" } }),
+          grantPurchaseCredits({ ...paid, data: { ...paid.data, product_id: "unknown" } }),
         );
       },
     );
@@ -379,6 +379,44 @@ test("PostgreSQL billing and local HTTP exports", { timeout: 180_000 }, async (t
         );
       },
     );
+    await t.test("Polar delivery pins its API version and preserves queued event IDs", async () => {
+      await deliverCreditReports(async () => {});
+      const id = await account(2);
+      const originalFetch = globalThis.fetch;
+      const responses = [{ inserted: 1 }, { inserted: 0, duplicates: 1 }];
+      try {
+        globalThis.fetch = async (input, init) => {
+          const request = new Request(input, init);
+          assert.equal(request.url, "https://sandbox-api.polar.sh/v1/events/ingest");
+          assert.equal(request.headers.get("Polar-Version"), "2026-10");
+          assert.deepEqual((await request.json()).events, [
+            {
+              name: "usage",
+              external_id: `sdk:${id}:${responses.length}`,
+              external_customer_id: id,
+              metadata: { credits: 1 },
+            },
+          ]);
+          return Response.json(responses.shift());
+        };
+        for (const suffix of [2, 1]) {
+          await db.transaction((tx) =>
+            recordCreditChange(tx, {
+              userId: id,
+              operationKey: `sdk:${id}:${suffix}`,
+              amount: -1,
+              type: "usage",
+              report: true,
+            }),
+          );
+          assert.equal(await deliverCreditReports(), 1);
+        }
+        assert.equal(responses.length, 0);
+        assert.equal(await getCreditBalance(id), 0);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
     await t.test(
       "real local HTTP routes: balance, article billing/retry/failure, partial job/export",
       async () => {
@@ -630,7 +668,7 @@ test("PostgreSQL billing and local HTTP exports", { timeout: 180_000 }, async (t
             headers: { ...webhookHeaders, "webhook-signature": "v1,invalid" },
             body,
           });
-          assert.equal(rejected.status, 400);
+          assert.equal(rejected.status, 403);
           for (let i = 0; i < 2; i++) {
             const paid = await fetch(`${base}/api/auth/polar/webhooks`, {
               method: "POST",

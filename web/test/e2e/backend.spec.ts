@@ -123,7 +123,7 @@ test("concurrent webhook replay grants once; invalid signature and stale timesta
   ]) {
     expect(
       (await page.request.post("/api/auth/polar/webhooks", { headers, data: event.body })).status(),
-    ).toBe(400);
+    ).toBe(403);
   }
   expect(await balance(account.id)).toBe(1350);
 });

@@ -1,11 +1,11 @@
 import { test as base, expect, type Page } from "@playwright/test";
 import { createHmac, randomUUID } from "node:crypto";
 import { Pool } from "pg";
-import { Polar } from "@polar-sh/sdk";
+import { createPolar } from "@polar-sh/sdk/2026-10";
 const live = process.env.E2E_MODE === "live";
 const baseURL = process.env.BETTER_AUTH_URL!;
 const polar = live
-  ? new Polar({ accessToken: process.env.SANDBOX_POLAR_ACCESS_TOKEN, server: "sandbox" })
+  ? createPolar({ accessToken: process.env.SANDBOX_POLAR_ACCESS_TOKEN!, environment: "sandbox" })
   : null;
 
 export const db = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -40,7 +40,7 @@ export const test = base.extend<{ account: { id: string; token: string }; browse
       ? await polar.customers.create({
           email,
           name: "Xport automated test",
-          externalId: id,
+          external_id: id,
           metadata: { xport_test: true },
         })
       : null;
@@ -56,7 +56,7 @@ export const test = base.extend<{ account: { id: string; token: string }; browse
       ]);
       await use({ id, token });
     } finally {
-      if (customer) await polar!.customers.delete({ id: customer.id });
+      if (customer) await polar!.customers.delete(customer.id);
       const mismatch = await db.query(
         'SELECT u.credit_balance, COALESCE(SUM(t.amount),0)::int AS ledger FROM "user" u LEFT JOIN xport_credit_transactions t ON t.user_id=u.id WHERE u.id=$1 GROUP BY u.id',
         [id],

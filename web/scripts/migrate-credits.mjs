@@ -3,6 +3,8 @@ import { eq, inArray } from "drizzle-orm";
 import { creditTransactions, fetchJobs, user } from "../src/db/schema.ts";
 import { db } from "../src/lib/db.ts";
 import { recordCreditChange } from "../src/lib/credit-ledger.ts";
+import { getStateExternalCustomers } from "@polar-sh/sdk/2026-10/services/customers";
+import { iterListOrders } from "@polar-sh/sdk/2026-10/services/orders";
 import { polarClient } from "../src/lib/polar.ts";
 import { extractCreditsBalance } from "../../core/src/credits.ts";
 import { creditProducts } from "../src/lib/billing-products.ts";
@@ -28,19 +30,17 @@ try {
     const rows = [];
     for (const account of users) {
       // Resolve by the durable local user ID, never guess between customers by email.
-      const state = await polarClient.customers.getStateExternal({ externalId: account.id });
+      const state = await getStateExternalCustomers(polarClient)(account.id);
       const includedOrderIds = [];
-      for await (const page of await polarClient.orders.list({
-        externalCustomerId: account.id,
+      for await (const order of iterListOrders(polarClient)({
+        external_customer_id: account.id,
         limit: 100,
       })) {
-        for (const order of page.result.items) {
-          if (
-            order.paid &&
-            creditProducts().some((product) => product.productId === order.productId)
-          )
-            includedOrderIds.push(order.id);
-        }
+        if (
+          order.paid &&
+          creditProducts().some((product) => product.productId === order.product_id)
+        )
+          includedOrderIds.push(order.id);
       }
       rows.push({
         userId: account.id,

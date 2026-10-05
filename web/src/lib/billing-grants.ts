@@ -1,4 +1,4 @@
-import type { WebhookOrderPaidPayload } from "@polar-sh/sdk/models/components/webhookorderpaidpayload";
+import type { webhooks } from "@polar-sh/sdk/2026-10";
 import { eq } from "drizzle-orm";
 import { creditTransactions } from "../db/schema.ts";
 import { db } from "./db.ts";
@@ -7,16 +7,16 @@ import { creditProducts } from "./billing-products.ts";
 
 export async function grantPurchaseCredits({
   data: order,
-}: WebhookOrderPaidPayload): Promise<void> {
+}: webhooks.WebhookOrderPaidPayload): Promise<void> {
   assertBillingEnabled();
   const product = creditProducts().find(
-    (item) => item.productId && item.productId === order.productId,
+    (item) => item.productId && item.productId === order.product_id,
   );
   if (!product)
     throw new Error(
       "Unknown credit product; configure its credit amount before replaying this order.",
     );
-  const userId = order.customer.externalId;
+  const userId = order.customer.external_id;
   if (!order.paid || !userId) throw new Error("Paid order must identify an Xport user.");
   await db.transaction(async (tx) => {
     await lockCreditBalance(tx, userId);
@@ -31,7 +31,7 @@ export async function grantPurchaseCredits({
       operationKey: `purchase:${order.id}`,
       amount: product.credits,
       type: "purchase",
-      metadata: { productId: order.productId },
+      metadata: { productId: order.product_id },
     });
   });
 }

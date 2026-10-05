@@ -1,14 +1,27 @@
 import { and, eq, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import { creditTransactions } from "../db/schema.ts";
 import { db } from "./db.ts";
+import { ingestEvents } from "@polar-sh/sdk/2026-10/services/events";
 import { polarClient } from "./polar.ts";
 
 type Payload = NonNullable<typeof creditTransactions.$inferSelect.polarPayload>;
 
 export async function deliverCreditReports(
   send: (payload: Payload) => Promise<void> = async (payload) => {
-    const result = await polarClient.events.ingest({ events: [payload] }, { timeoutMs: 30_000 });
-    if (result.inserted + result.duplicates !== 1)
+    const result = await ingestEvents(polarClient)(
+      {
+        events: [
+          {
+            name: payload.name,
+            external_id: payload.externalId,
+            external_customer_id: payload.externalCustomerId,
+            metadata: payload.metadata,
+          },
+        ],
+      },
+      { timeout: 30 },
+    );
+    if (result.inserted + (result.duplicates ?? 0) !== 1)
       throw new Error("Polar did not acknowledge the usage event.");
   },
 ): Promise<number> {
