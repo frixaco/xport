@@ -384,9 +384,6 @@ async function runExportCommand(
 
   const inputType = detectUrlType(options.input);
   const requestConfig = buildRequestConfig(options.input, inputType);
-  if (inputType === "Bookmarks") {
-    throw new CliError("Bookmarks export is not available yet.");
-  }
   if (!requestConfig) {
     throw new CliError("Invalid input. Provide a valid X (ex-Twitter) URL or @username.");
   }

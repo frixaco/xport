@@ -69,7 +69,6 @@ pn --filter @frixaco/xport fetch-thread -- <tweet-url-or-id>
 pn --filter @frixaco/xport fetch-article -- <tweet-url-or-id>
 pn --filter @frixaco/xport fetch-posts-by-username -- <username>
 pn --filter @frixaco/xport fetch-user-info -- <username>
-pn --filter @frixaco/xport fetch-bookmarks
 pn --filter @frixaco/xport exec tsx json-to-text.ts <input.json>
 ```
 

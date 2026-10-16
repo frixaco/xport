@@ -2,7 +2,7 @@ export type ParsedURL =
   | { type: "tweet"; tweetId: string; username?: string }
   | { type: "user"; username: string };
 
-export type DetectedType = "Tweet" | "User" | "Thread" | "Article" | "Bookmarks" | null;
+export type DetectedType = "Tweet" | "User" | "Thread" | "Article" | null;
 
 export type RequestType = "thread" | "user-tweets" | "article";
 

@@ -40,9 +40,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # IntelliJ
 .idea
 
-# sensitive auth data
-data/bookmarks-auth.json
-
 # tarball
 *.tgz
 

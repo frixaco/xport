@@ -330,11 +330,6 @@ export function useExportFlow(search: HomeSearch) {
     clearAsyncResults();
     setJobIdInUrl(null, { clearInput: clearInputQueryParam });
 
-    if (inputType === "Bookmarks") {
-      setValidationError("Bookmarks export is not available yet.");
-      return;
-    }
-
     if (!requestConfig) {
       setValidationError("Invalid input. Provide a valid X (ex-Twitter) URL or @username.");
       return;

@@ -132,7 +132,6 @@ export function detectUrlType(value: string): DetectedType {
   const trimmed = value.trim();
   if (!trimmed) return null;
 
-  if (/\/(i\/)?bookmarks/i.test(trimmed)) return "Bookmarks";
   if (/\/article\/\d+/.test(trimmed)) return "Article";
   if (/\/thread\/\d+/.test(trimmed)) return "Thread";
   if (/\/status\/\d+/.test(trimmed)) {
@@ -156,7 +155,7 @@ export function buildRequestConfig(
   detectedType: DetectedType,
 ): RequestConfig | null {
   const trimmed = input.trim();
-  if (!trimmed || detectedType === "Bookmarks") return null;
+  if (!trimmed) return null;
 
   if (detectedType === "Article") {
     const tweetId = parseTweetId(trimmed);
