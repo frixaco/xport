@@ -169,8 +169,11 @@ test("active job survives browser reload and completes once", async ({ page, acc
 
 for (const kind of ["article", "status"])
   test(`direct ${kind} URL redirects and auto-starts`, async ({ page, account }) => {
-    await page.goto(`/x.com/example/${kind}/123`);
-    await expect(page).toHaveURL(/input=/);
+    // The app drops ?input= once the export starts, so check the redirect target, not the live URL.
+    const response = await page.goto(`/x.com/example/${kind}/123`);
+    expect(new URL(response!.url()).searchParams.get("input")).toBe(
+      `https://x.com/example/${kind}/123`,
+    );
     await expect(
       page.getByText(kind === "article" ? "Fetched article" : "Complete", { exact: true }),
     ).toBeVisible();
