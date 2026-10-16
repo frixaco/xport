@@ -1,6 +1,14 @@
 import { ExternalLink, LoaderCircle } from "lucide-react";
+import { Fragment } from "react";
 import { cn } from "@/lib/utils";
-import type { FetchJobStatusResponse, MediaItem, ResultState, TweetCardModel } from "./types";
+import { getBlockSpans, groupArticleBlocks } from "./article-content";
+import type {
+  FetchJobStatusResponse,
+  InlineSpan,
+  MediaItem,
+  ResultState,
+  TweetCardModel,
+} from "./types";
 import { estimateCostCredits, formatCount, formatCreditLabel } from "./display";
 
 function Chip({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -340,38 +348,11 @@ function ArticleContent({ result }: { result: ResultState & { kind: "article" } 
         <MediaGallery media={[{ type: "image", url: result.coverImageUrl }]} altPrefix="Article" />
       )}
       {result.sections.length > 0 ? (
-        <div className="max-w-none">
-          {result.sections.map((block) => {
-            if (!block.text && block.type !== "divider") return null;
-
-            if (block.type === "image" || block.type === "gif") {
-              const url = block.previewUrl || block.url;
-              if (!url) return null;
-              return (
-                <MediaGallery
-                  key={`article-media-${url}`}
-                  media={[{ type: "image", url }]}
-                  altPrefix="Article"
-                />
-              );
-            }
-
-            return (
-              <p
-                key={`${block.type}-${block.url ?? ""}-${block.text}`}
-                className={cn(
-                  "text-sm leading-relaxed whitespace-pre-wrap",
-                  block.type === "blockquote" && "border-l-2 pl-4 italic",
-                  block.type === "header-one" && "text-lg font-semibold",
-                  block.type === "header-two" && "text-base font-semibold",
-                  block.type === "header-three" && "text-sm font-semibold",
-                )}
-                dangerouslySetInnerHTML={{
-                  __html: renderBlockHtml(block.text, block.type),
-                }}
-              />
-            );
-          })}
+        <div className="flex max-w-none flex-col gap-3 text-sm leading-relaxed">
+          {groupArticleBlocks(result.sections).map((group, index) => (
+            // oxlint-disable-next-line react/no-array-index-key -- article blocks are static and never reorder.
+            <ArticleBlockGroup key={`${group.type}-${index}`} group={group} />
+          ))}
         </div>
       ) : (
         <EmptyPlaceholder message="No article content returned." />
@@ -380,25 +361,85 @@ function ArticleContent({ result }: { result: ResultState & { kind: "article" } 
   );
 }
 
-function renderBlockHtml(text: string, type: string | undefined): string {
-  if (type === "header-one" || type === "header-two" || type === "header-three") {
-    return escapeHtml(text);
+function ArticleBlockGroup({ group }: { group: ReturnType<typeof groupArticleBlocks>[number] }) {
+  const [block] = group.blocks;
+  if (!block) return null;
+
+  if (group.type === "unordered-list-item" || group.type === "ordered-list-item") {
+    const List = group.type === "ordered-list-item" ? "ol" : "ul";
+    return (
+      <List
+        className={cn("flex flex-col gap-1 pl-5", List === "ol" ? "list-decimal" : "list-disc")}
+      >
+        {group.blocks.map((item, index) => (
+          // oxlint-disable-next-line react/no-array-index-key -- article blocks are static and never reorder.
+          <li key={index} className="whitespace-pre-wrap">
+            <InlineText spans={getBlockSpans(item)} />
+          </li>
+        ))}
+      </List>
+    );
   }
-  return escapeHtml(text)
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/_(.+?)_/g, "<em>$1</em>")
-    .replace(/~~(.+?)~~/g, "<del>$1</del>")
-    .replace(/`(.+?)`/g, "<code>$1</code>")
-    .replace(/&lt;u&gt;(.+?)&lt;\/u&gt;/g, "<u>$1</u>");
+
+  switch (block.type) {
+    case "image":
+    case "gif": {
+      const url = block.type === "gif" ? block.previewUrl || block.url : block.url;
+      return url ? <MediaGallery media={[{ type: "image", url }]} altPrefix="Article" /> : null;
+    }
+    case "divider":
+      return <hr className="my-2" />;
+    case "header-one":
+      return (
+        <h3 className="mt-2 text-lg font-semibold">
+          <InlineText spans={getBlockSpans(block)} />
+        </h3>
+      );
+    case "header-two":
+      return (
+        <h4 className="mt-2 text-base font-semibold">
+          <InlineText spans={getBlockSpans(block)} />
+        </h4>
+      );
+    case "header-three":
+      return (
+        <h5 className="mt-1 text-sm font-semibold">
+          <InlineText spans={getBlockSpans(block)} />
+        </h5>
+      );
+    case "blockquote":
+      return (
+        <blockquote className="border-l-2 pl-4 whitespace-pre-wrap text-muted-foreground">
+          <InlineText spans={getBlockSpans(block)} />
+        </blockquote>
+      );
+    case "markdown":
+      return (
+        <pre className="overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs whitespace-pre-wrap">
+          {block.text}
+        </pre>
+      );
+    default:
+      return block.text.trim() ? (
+        <p className="whitespace-pre-wrap">
+          <InlineText spans={getBlockSpans(block)} />
+        </p>
+      ) : null;
+  }
 }
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+function InlineText({ spans }: { spans: InlineSpan[] }) {
+  return spans.map((span, index) => {
+    let node: React.ReactNode = span.text;
+    if (span.styles.includes("code"))
+      node = <code className="rounded bg-muted px-1 font-mono text-xs">{node}</code>;
+    if (span.styles.includes("underline")) node = <u>{node}</u>;
+    if (span.styles.includes("strikethrough")) node = <del>{node}</del>;
+    if (span.styles.includes("italic")) node = <em>{node}</em>;
+    if (span.styles.includes("bold")) node = <strong>{node}</strong>;
+    // oxlint-disable-next-line react/no-array-index-key -- article blocks are static and never reorder.
+    return <Fragment key={index}>{node}</Fragment>;
+  });
 }
 
 function ThreadContent({ result }: { result: ResultState & { kind: "thread" } }) {

@@ -208,7 +208,8 @@ createServer(async (req, res) => {
           contents: [
             {
               type: "unstyled",
-              text: 'Paid content **bold** <img src=x onerror="window.articleXss=true">',
+              text: 'Paid content bold <img src=x onerror="window.articleXss=true">',
+              inlineStyleRanges: [{ offset: 13, length: 4, style: "Bold" }],
             },
           ],
         },

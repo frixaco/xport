@@ -116,7 +116,10 @@ export function normalizeResult(
   }
 
   const article = isObject(payload.article) ? payload.article : null;
-  const title = article && isNonEmptyString(article.title) ? article.title : "Article";
+  const title =
+    article && isNonEmptyString(article.title) && article.title.trim()
+      ? article.title.trim().replace(/\s+/g, " ")
+      : "Article";
   const authorUsername =
     article && isObject(article.author) && isNonEmptyString(article.author.userName)
       ? article.author.userName
@@ -125,7 +128,10 @@ export function normalizeResult(
   const publishedDate = article ? formatIsoDate(article.createdAt) : null;
   const author = authorUsername ? `@${authorUsername}` : null;
   const byline = author && date ? `${author} · ${date}` : (author ?? date ?? null);
-  const preview = article && isNonEmptyString(article.preview_text) ? article.preview_text : null;
+  const preview =
+    article && isNonEmptyString(article.preview_text)
+      ? article.preview_text.trim().replace(/\s+/g, " ")
+      : null;
   const coverImageUrl =
     article && isNonEmptyString(article.cover_media_img_url)
       ? normalizeUrlCandidate(article.cover_media_img_url)

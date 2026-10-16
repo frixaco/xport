@@ -1,6 +1,6 @@
+import { articleBlocksToMarkdown } from "./article-content.ts";
 import { extractUsernameFromMeta } from "./tweet-card.ts";
 import type {
-  ContentBlock,
   ResultExportFormat,
   ResultState,
   ThreadResultState,
@@ -107,11 +107,6 @@ function threadTitleFromFirstPost(text: string): string {
   return title || "Thread";
 }
 
-function getArticleMarkdownBlock(block: ContentBlock): string | null {
-  if (block.type === "divider") return "---";
-  return block.text || null;
-}
-
 function toArticleMarkdown(result: ArticleResult): string {
   const frontmatterLines = [
     "---",
@@ -129,14 +124,21 @@ function toArticleMarkdown(result: ArticleResult): string {
     "---",
   ].filter((line): line is string => Boolean(line));
 
-  const body = [
-    result.coverImageUrl ? `![Cover](${result.coverImageUrl})` : null,
-    ...result.sections.map(getArticleMarkdownBlock),
-  ].filter((line): line is string => Boolean(line));
+  const author = result.authorUsername
+    ? `[@${result.authorUsername}](https://x.com/${result.authorUsername})`
+    : null;
+  const byline = [
+    author ? `By ${author}` : null,
+    result.publishedDate,
+    result.sourceUrl ? `[View on X](${result.sourceUrl})` : null,
+  ].filter(Boolean);
 
-  if (body.length === 0) {
-    return `${frontmatterLines.join("\n")}\n`;
-  }
+  const body = [
+    `# ${result.title}`,
+    byline.length > 0 ? byline.join(" · ") : null,
+    result.coverImageUrl ? `![Cover](${result.coverImageUrl})` : null,
+    articleBlocksToMarkdown(result.sections),
+  ].filter((line): line is string => Boolean(line));
 
   return `${frontmatterLines.join("\n")}\n\n${body.join("\n\n").trim()}\n`;
 }

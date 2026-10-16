@@ -5,6 +5,7 @@ export type {
   FetchJobRequestType,
   FetchJobResumeResponse,
   FetchJobStatusResponse,
+  InlineSpan,
   MediaItem,
   RequestConfig,
   RequestType,

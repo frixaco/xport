@@ -1,1 +1,1 @@
-export { normalizeArticleContents } from "@xport/core";
+export { getBlockSpans, groupArticleBlocks, normalizeArticleContents } from "@xport/core";

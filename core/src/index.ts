@@ -7,6 +7,8 @@ export type {
   FetchJobResumeResponse,
   FetchJobStatus,
   FetchJobStatusResponse,
+  InlineSpan,
+  InlineStyle,
   MediaItem,
   ParsedURL,
   RequestConfig,
@@ -34,7 +36,12 @@ export {
   extractUsernameFromTweetCard,
   normalizeTweetCards,
 } from "./tweet-card.ts";
-export { normalizeArticleContents } from "./article-content.ts";
+export {
+  articleBlocksToMarkdown,
+  getBlockSpans,
+  groupArticleBlocks,
+  normalizeArticleContents,
+} from "./article-content.ts";
 export {
   extractErrorMessage,
   hasRenderableContent,

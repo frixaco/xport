@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, extname } from "node:path";
+import { articleBlocksToMarkdown, normalizeArticleContents } from "../core/src/article-content.ts";
 
 const X_API_KEY = process.env.X_API_KEY;
 const X_API_URL = process.env.X_API_URL;
@@ -116,98 +117,6 @@ function formatDate(dateStr: string): string {
   return date.toISOString().split("T")[0] ?? "";
 }
 
-function applyInlineStyles(text: string, ranges?: InlineStyleRange[]): string {
-  if (!ranges || ranges.length === 0) return text;
-
-  let result = text;
-  const sortedRanges = ranges.toSorted((a, b) => b.offset - a.offset);
-
-  const styleMap: Record<string, string> = {
-    Bold: "**",
-    Italic: "_",
-    BoldItalic: "**_",
-    Underline: "<u></u>",
-    Strikethrough: "~~",
-    Code: "`",
-    ItalicCode: "_`",
-    BoldCode: "**`",
-  };
-
-  for (const range of sortedRanges) {
-    const marker = styleMap[range.style]?.[0] || "";
-    const markerEnd = styleMap[range.style]?.slice(1) || marker;
-    const before = result.slice(0, range.offset);
-    const marked = result.slice(range.offset, range.offset + range.length);
-    const after = result.slice(range.offset + range.length);
-    result = `${before}${marker}${marked}${markerEnd}${after}`;
-  }
-
-  return result;
-}
-
-type ContentBlock = {
-  type: string;
-  text?: string;
-  url?: string;
-  previewUrl?: string;
-  width?: number;
-  height?: number;
-  inlineStyleRanges?: InlineStyleRange[];
-};
-
-function renderContentBlock(content: ContentBlock, index: number): string {
-  const styledText = applyInlineStyles(content.text || "", content.inlineStyleRanges);
-
-  switch (content.type) {
-    case "unstyled":
-    case "markdown":
-      return styledText;
-
-    case "header-one":
-      return `## ${styledText}`;
-
-    case "header-two":
-      return `### ${styledText}`;
-
-    case "header-three":
-      return `#### ${styledText}`;
-
-    case "unordered-list-item":
-      return `- ${styledText}`;
-
-    case "ordered-list-item":
-      return `${index + 1}. ${styledText}`;
-
-    case "image": {
-      if (!content.url) return "";
-      const displayUrl = content.previewUrl || content.url;
-      const dims = content.width && content.height ? `=${content.width}x${content.height}` : "";
-      return `![](${displayUrl}${dims})`;
-    }
-
-    case "gif": {
-      if (!content.url) return "";
-      const displayUrl = content.previewUrl || content.url;
-      return `![](${displayUrl})`;
-    }
-
-    case "video":
-    case "mp4": {
-      if (!content.url) return "";
-      return `[Video](${content.url})`;
-    }
-
-    case "divider":
-      return "---";
-
-    case "blockquote":
-      return `> ${styledText}`;
-
-    default:
-      return styledText || "";
-  }
-}
-
 function generateMarkdown(article: Article, originalUrl: string): string {
   const publishedDate = formatDate(article.createdAt);
   const createdDate = new Date().toISOString().split("T")[0];
@@ -216,7 +125,7 @@ function generateMarkdown(article: Article, originalUrl: string): string {
   if (article.id) {
     md += `article_id: "${article.id}"\n`;
   }
-  md += `title: "${article.title.replace(/"/g, '\\"')}"\n`;
+  md += `title: "${article.title.trim().replace(/"/g, '\\"')}"\n`;
   md += `source: "${originalUrl}"\n`;
   md += "author:\n";
   md += `  - name: "${article.author.name}"\n`;
@@ -230,35 +139,19 @@ function generateMarkdown(article: Article, originalUrl: string): string {
   md += `published: ${publishedDate}\n`;
   md += `created: ${createdDate}\n`;
   if (article.preview_text) {
-    md += `description: "${article.preview_text.replace(/"/g, '\\"').replace(/\n/g, " ")}"\n`;
+    md += `description: "${article.preview_text.trim().replace(/\s+/g, " ").replace(/"/g, '\\"')}"\n`;
   }
   md += "tags:\n";
   md += '  - "clippings"\n';
   md += "---\n\n";
 
+  md += `# ${article.title.trim()}\n\n`;
+
   if (article.cover_media_img_url) {
     md += `![Cover](${article.cover_media_img_url})\n\n`;
   }
 
-  let orderedListIndex = 0;
-
-  for (const content of article.contents) {
-    let blockText = "";
-
-    if (content.type === "ordered-list-item") {
-      blockText = renderContentBlock(content, orderedListIndex);
-      orderedListIndex++;
-    } else {
-      blockText = renderContentBlock(content, 0);
-      if (content.type !== "unordered-list-item" && content.type !== "ordered-list-item") {
-        orderedListIndex = 0;
-      }
-    }
-
-    if (blockText) {
-      md += blockText + "\n\n";
-    }
-  }
+  md += articleBlocksToMarkdown(normalizeArticleContents(article.contents));
 
   return md.trim() + "\n";
 }

@@ -52,9 +52,19 @@ export interface UserTweetsResultState {
   usage: UsageMetadata | null;
 }
 
+export type InlineStyle = "bold" | "italic" | "strikethrough" | "underline" | "code";
+
+export interface InlineSpan {
+  text: string;
+  styles: InlineStyle[];
+}
+
 export interface ContentBlock {
   type: string;
+  /** Plain text without formatting markers. */
   text: string;
+  /** Present only when the block has inline styles; concatenated span text equals `text`. */
+  spans?: InlineSpan[];
   url?: string;
   previewUrl?: string;
   width?: number;

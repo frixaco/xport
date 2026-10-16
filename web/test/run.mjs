@@ -181,6 +181,7 @@ try {
     await run("node", [
       "--test",
       "../core/test/account-replies.test.ts",
+      "../core/test/article-content.test.ts",
       "../core/test/url-parser.test.ts",
       "test/runner.test.mjs",
     ]);
