@@ -78,7 +78,7 @@ pn --filter @frixaco/xport exec tsx json-to-text.ts <input.json>
 - Domain: `xport.frixaco.com`.
 - Database: PostgreSQL.
 - Runtime: Node.js, pnpm 11.x.
-- Build/start are defined in `railway.json`.
+- Build/start/healthcheck are defined in `.railway/railway.ts` (Railway IaC partial for `xport-web`). Preview with `railway config plan`; apply with `railway config apply`. Railway does not read it on deploy.
 - Production env vars are managed in Railway, not committed files.
 - `BETTER_AUTH_URL` must match `https://xport.frixaco.com`.
 - `BETTER_AUTH_SECRET` must be set outside local throwaway runs.

@@ -108,11 +108,18 @@ Optional:
 
 Production runs on Railway at `https://xport.frixaco.com`.
 
-Railway uses `railway.json`:
+Service settings live in `.railway/railway.ts`, a Railway IaC partial that owns only `xport-web`:
 
 - Build: `pn build`
 - Start: `pn start`
 - Healthcheck: `/`
+
+Railway does not read this file on deploy. Preview and apply changes with the CLI:
+
+```bash
+railway config plan
+railway config apply
+```
 
 ```bash
 railway service xport-web
@@ -148,6 +155,13 @@ Prepare the npm package locally:
 ```bash
 pn --filter @frixaco/xport build
 pn --filter @frixaco/xport pack --pack-destination /tmp
+```
+
+Release: bump `version` in `cli/package.json`, commit, then push a matching tag. `.github/workflows/release.yml` checks the tag against the package version and publishes to npm with trusted publishing (no npm token).
+
+```bash
+git tag v0.1.5
+git push origin main v0.1.5
 ```
 
 Workspace usage:
