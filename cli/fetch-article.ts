@@ -66,7 +66,7 @@ interface Article {
   replyCount?: number;
   likeCount?: number;
   quoteCount?: number;
-  viewCount?: number;
+  viewCount?: number | string;
   createdAt: string;
   title: string;
   preview_text?: string;

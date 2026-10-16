@@ -107,7 +107,7 @@ async function fetchTweetsByIds(ids: string[]): Promise<Tweet[]> {
   if (!response.ok) {
     console.error("API Response:", JSON.stringify(json, null, 2));
     throw new Error(
-      `API error: ${response.status} - ${json.msg || json.message || "Unknown error"}`,
+      `API error: ${response.status} - ${json.msg || json.message || json.detail || "Unknown error"}`,
     );
   }
   return json.tweets || [];
@@ -150,11 +150,12 @@ async function main() {
   const idArray = Array.from(tweetIds);
   const allTweets: Tweet[] = [];
 
-  for (let i = 0; i < idArray.length; i += 100) {
-    const batch = idArray.slice(i, i + 100);
+  // /twitter/tweets rejects more than 50 IDs per request.
+  for (let i = 0; i < idArray.length; i += 50) {
+    const batch = idArray.slice(i, i + 50);
     const tweets = await fetchTweetsByIds(batch);
     allTweets.push(...tweets);
-    if (i + 100 < idArray.length) {
+    if (i + 50 < idArray.length) {
       await new Promise((r) => setTimeout(r, 300));
     }
   }

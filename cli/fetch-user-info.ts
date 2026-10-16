@@ -67,7 +67,7 @@ async function fetchUserInfo(userName: string): Promise<UserData> {
 
   if (!response.ok || json.status !== "success") {
     console.error("API Response:", JSON.stringify(json, null, 2));
-    throw new Error(`API error: ${response.status}`);
+    throw new Error(`API error: ${response.status} - ${(json as { msg?: string }).msg}`);
   }
 
   return json.data;
@@ -97,6 +97,10 @@ async function main() {
   console.log(`Fetching user info for @${userName}...\n`);
 
   const user = await fetchUserInfo(userName);
+  if (user.unavailable) {
+    console.log(`@${userName} is unavailable: ${user.unavailableReason || user.message}`);
+    return;
+  }
 
   console.log(`@${user.userName} (${user.name})`);
   console.log(`ID: ${user.id}`);

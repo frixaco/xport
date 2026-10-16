@@ -4,7 +4,9 @@ const X_API_KEY = process.env.X_API_KEY;
 const X_API_URL = process.env.X_API_URL;
 if (!X_API_KEY) throw new Error("X_API_KEY environment variable is required");
 if (!X_API_URL) throw new Error("X_API_URL environment variable is required");
-const BASE_URL = X_API_URL + "/twitter/tweet/advanced_search";
+// Advanced search (from:<user> filter:replies) silently omits many replies; the timeline does not.
+const BASE_URL = X_API_URL + "/twitter/user/tweet_timeline";
+const INFO_URL = X_API_URL + "/twitter/user/info";
 
 interface MediaItem {
   type: string;
@@ -44,7 +46,6 @@ interface Tweet {
   isLimitedReply?: boolean;
   inReplyToId?: string;
   inReplyToUserId?: string;
-  inReplyToUserName?: string;
   inReplyToUsername?: string;
   conversationId?: string;
   displayTextRange?: number[];
@@ -65,7 +66,9 @@ interface Tweet {
 }
 
 interface ApiResponse {
-  tweets: Tweet[];
+  // Live responses nest tweets under data; the published schema puts them at the top level.
+  data?: { tweets?: Tweet[] };
+  tweets?: Tweet[];
   has_next_page: boolean;
   next_cursor: string;
 }
@@ -85,10 +88,30 @@ if (!userName) {
   process.exit(1);
 }
 
-async function fetchReplies(cursor: string = ""): Promise<ApiResponse> {
+async function resolveUserId(): Promise<string> {
+  const url = new URL(INFO_URL);
+  url.searchParams.set("userName", userName);
+
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    headers: { "X-API-Key": X_API_KEY },
+  });
+
+  const json = (await response.json()) as any;
+
+  if (!response.ok || !json.data?.id) {
+    console.error("API Response:", JSON.stringify(json, null, 2));
+    const reason = json.data?.unavailableReason || json.msg;
+    throw new Error(`Could not resolve user id for @${userName}${reason ? ` (${reason})` : ""}`);
+  }
+
+  return json.data.id;
+}
+
+async function fetchReplies(userId: string, cursor: string = ""): Promise<ApiResponse> {
   const url = new URL(BASE_URL);
-  url.searchParams.set("query", `from:${userName} filter:replies`);
-  url.searchParams.set("queryType", "Latest");
+  url.searchParams.set("userId", userId);
+  url.searchParams.set("includeReplies", "true");
   if (cursor) url.searchParams.set("cursor", cursor);
 
   const response = await fetch(url.toString(), {
@@ -98,7 +121,7 @@ async function fetchReplies(cursor: string = ""): Promise<ApiResponse> {
 
   const json = (await response.json()) as any;
 
-  if (!response.ok) {
+  if (!response.ok || json.status === "error") {
     console.error("API Response:", JSON.stringify(json, null, 2));
     throw new Error(
       `API error: ${response.status} - ${json.msg || json.message || "Unknown error"}`,
@@ -152,14 +175,15 @@ async function main() {
   const newIds = new Set<string>();
   let cursor = "";
 
-  console.log(`Fetching replies from @${userName} via advanced search...`);
+  const userId = await resolveUserId();
+  console.log(`Fetching replies from @${userName} via user timeline...`);
   if (existingReplies.length > 0) {
     console.log(`Found ${existingReplies.length} existing replies.`);
   }
 
   while (true) {
-    const response = await fetchReplies(cursor);
-    const tweets = response.tweets || [];
+    const response = await fetchReplies(userId, cursor);
+    const tweets = response.data?.tweets ?? response.tweets ?? [];
 
     if (!tweets.length) {
       console.log("No more tweets available");
@@ -167,7 +191,10 @@ async function main() {
     }
 
     for (const tweet of tweets) {
-      if (existingIds.has(tweet.id) || newIds.has(tweet.id)) {
+      const isOwnReply =
+        tweet.author?.userName?.toLowerCase() === userName.toLowerCase() &&
+        Boolean(tweet.isReply || tweet.inReplyToId);
+      if (!isOwnReply || existingIds.has(tweet.id) || newIds.has(tweet.id)) {
         continue;
       }
 
@@ -178,7 +205,7 @@ async function main() {
         text: tweet.text,
         media: extractMedia(tweet),
         replyToId: tweet.inReplyToId,
-        replyToUser: tweet.inReplyToUserName,
+        replyToUser: tweet.inReplyToUsername,
       });
     }
 

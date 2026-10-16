@@ -61,9 +61,11 @@ interface Tweet {
 
 interface ApiResponse {
   status: string;
-  data: {
-    tweets: Tweet[];
+  // Live responses nest tweets under data; the published schema puts them at the top level.
+  data?: {
+    tweets?: Tweet[];
   };
+  tweets?: Tweet[];
   has_next_page: boolean;
   next_cursor: string;
 }
@@ -92,7 +94,8 @@ async function resolveUserId(): Promise<string> {
 
   if (!response.ok || !json.data?.id) {
     console.error("API Response:", JSON.stringify(json, null, 2));
-    throw new Error(`Could not resolve user id for @${userName}`);
+    const reason = json.data?.unavailableReason || json.msg;
+    throw new Error(`Could not resolve user id for @${userName}${reason ? ` (${reason})` : ""}`);
   }
 
   return json.data.id;
@@ -177,7 +180,7 @@ async function main() {
 
   while (!shouldStop) {
     const response = await fetchTweets(cursor);
-    const tweets = response.data.tweets;
+    const tweets = response.data?.tweets ?? response.tweets;
 
     if (!tweets?.length) {
       console.log("No more tweets available");
