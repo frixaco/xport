@@ -113,6 +113,25 @@ test("empty export minimum charge and no results UI", async ({ page, account }) 
   expect(await balance(account.id)).toBe(99);
 });
 
+for (const [input, code, message] of [
+  ["@missing", "ACCOUNT_NOT_FOUND", "That X (ex-Twitter) account does not exist."],
+  ["@suspended", "ACCOUNT_UNAVAILABLE", "That X (ex-Twitter) account is suspended or unavailable."],
+])
+  test(`${input} account fails clearly without charging`, async ({ page, account }) => {
+    const response = await page.request.post("/api/fetch-jobs", { data: { input } });
+    const { jobId } = await response.json();
+    await expect.poll(async () => (await jobRow(jobId)).status).toBe("failed");
+    const job = await jobRow(jobId);
+    expect([job.error_code, job.runner_id, job.pages_fetched]).toEqual([code, null, 0]);
+    await page.goto(`/?jobId=${jobId}`);
+    await expect(page.getByText(message)).toBeVisible();
+    const direct = await page.request.post(`/api/user-tweets?userName=${input.slice(1)}`, {
+      headers: { "Idempotency-Key": randomUUID() },
+    });
+    expect([direct.status(), (await direct.json()).code]).toEqual([404, code]);
+    expect(await balance(account.id)).toBe(100);
+  });
+
 test("concurrent webhook replay grants once; invalid signature and stale timestamp do not grant", async ({
   page,
   account,

@@ -38,6 +38,12 @@ export function publicJobError(code: string | null): { code: string; message: st
       message: "The export reached its safe fetch limit. Partial results are available.",
     };
   }
+  if (code === "ACCOUNT_NOT_FOUND") {
+    return { code, message: "That X (ex-Twitter) account does not exist." };
+  }
+  if (code === "ACCOUNT_UNAVAILABLE") {
+    return { code, message: "That X (ex-Twitter) account is suspended or unavailable." };
+  }
   if (code === "UPSTREAM_ERROR") {
     return {
       code,

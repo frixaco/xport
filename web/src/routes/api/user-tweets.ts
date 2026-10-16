@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { fetchUserInfo, fetchUserTimeline } from "@/lib/x-api";
+import { fetchUserId, fetchUserTimeline, getTimelineTweets } from "@/lib/x-api";
 import { parseUsername } from "@/lib/url-parser";
 import { calculateTweetListCredits } from "@/lib/credits";
 import {
@@ -52,20 +52,20 @@ export const Route = createFileRoute("/api/user-tweets")({
               request,
               JSON.stringify(["user-tweets", userName.toLowerCase(), cursor, includeReplies]),
               async () => {
-                const userInfo = await fetchUserInfo(userName);
-                const data = await fetchUserTimeline(userInfo.data.id, cursor);
-                const tweets = data.data?.tweets ?? [];
+                const userId = await fetchUserId(userName);
+                const data = await fetchUserTimeline(userId, cursor, { includeReplies });
+                const tweets = getTimelineTweets(data);
                 const tweetCount = tweets.length;
                 return {
-                  payload: includeReplies
-                    ? data
-                    : {
-                        ...data,
-                        data: {
-                          ...data.data,
-                          tweets: tweets.filter((tweet) => !(tweet.isReply || tweet.inReplyToId)),
-                        },
-                      },
+                  payload: {
+                    ...data,
+                    data: {
+                      ...data.data,
+                      tweets: includeReplies
+                        ? tweets
+                        : tweets.filter((tweet) => !(tweet.isReply || tweet.inReplyToId)),
+                    },
+                  },
                   credits: calculateTweetListCredits(tweetCount),
                   tweetCount,
                 };

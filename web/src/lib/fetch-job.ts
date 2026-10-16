@@ -4,8 +4,9 @@ import { fetchJobs, fetchTweets } from "@/db/schema";
 import { db } from "@/lib/db";
 import {
   fetchThreadContext,
-  fetchUserInfo,
+  fetchUserId,
   fetchUserTimeline,
+  getTimelineTweets,
   XApiError,
   type XPost,
 } from "@/lib/x-api";
@@ -281,8 +282,7 @@ async function runFetchLoop(jobId: string): Promise<void> {
   try {
     let userId: string | undefined;
     if (!isThread) {
-      const userInfo = await fetchWithRetry(() => fetchUserInfo(job.inputNormalized));
-      userId = userInfo.data.id;
+      userId = await fetchWithRetry(() => fetchUserId(job.inputNormalized));
     }
 
     while (true) {
@@ -331,7 +331,7 @@ async function runFetchLoop(jobId: string): Promise<void> {
             includeReplies: job.requestType !== "user",
           }),
         );
-        const responseTweets = response.data?.tweets ?? [];
+        const responseTweets = getTimelineTweets(response);
         rawPageTweetCount = responseTweets.length;
         if (job.requestType === "replies") {
           tweets = responseTweets.filter((tweet) => {
@@ -369,19 +369,21 @@ async function runFetchLoop(jobId: string): Promise<void> {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
+    const code = error instanceof XApiError ? (error.code ?? "UPSTREAM_ERROR") : "FETCH_JOB_ERROR";
+    if (error instanceof XApiError && error.code) {
+      await finishJob(jobId, runnerId, "failed", { code, message });
+      return;
+    }
     console.error("Fetch job failed", { jobId, error });
     captureServerException(error, {
       distinctId: job.ownerUserId,
       properties: {
         job_id: jobId,
         request_type: job.requestType,
-        error_code: error instanceof XApiError ? "UPSTREAM_ERROR" : "FETCH_JOB_ERROR",
+        error_code: code,
       },
     });
-    await finishJob(jobId, runnerId, "failed", {
-      code: error instanceof XApiError ? "UPSTREAM_ERROR" : "FETCH_JOB_ERROR",
-      message,
-    });
+    await finishJob(jobId, runnerId, "failed", { code, message });
   }
 }
 

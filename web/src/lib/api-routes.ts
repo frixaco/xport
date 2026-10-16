@@ -44,6 +44,11 @@ function handleApiRouteError(error: unknown, fallbackMessage: string): Response 
     return errorJson(error.message, error.status, { code: error.code });
   }
 
+  if (error instanceof XApiError && error.code) {
+    const publicError = publicJobError(error.code)!;
+    return errorJson(publicError.message, 404, { code: publicError.code });
+  }
+
   if (error instanceof XApiError) {
     return errorJson("The source service could not complete the request.", 502, {
       code: "UPSTREAM_ERROR",

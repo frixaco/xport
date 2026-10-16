@@ -7,6 +7,7 @@ interface ErrorLikePayload {
   msg?: string;
   message?: string;
   error?: string;
+  detail?: string;
 }
 
 interface XAuthor {
@@ -81,9 +82,11 @@ export interface XThreadResponse {
 
 export interface XUserTweetsResponse {
   status: string;
-  data: {
-    tweets: XPost[];
+  // Live responses nest tweets under data; the published schema puts them at the top level.
+  data?: {
+    tweets?: XPost[];
   };
+  tweets?: XPost[];
   has_next_page: boolean;
   next_cursor?: string;
   msg?: string;
@@ -110,7 +113,7 @@ interface XArticle {
   replyCount?: number;
   likeCount?: number;
   quoteCount?: number;
-  viewCount?: number;
+  viewCount?: number | string;
   createdAt: string;
   title: string;
   preview_text?: string;
@@ -145,23 +148,36 @@ interface XUserInfo {
   mediaCount: number;
   statusesCount: number;
   pinnedTweetIds?: string[];
+  unavailable?: false;
+}
+
+// Suspended or otherwise unavailable accounts succeed with only these fields.
+interface XUnavailableUser {
+  unavailable: true;
+  message?: string;
+  unavailableReason?: string;
+  id?: undefined;
 }
 
 export interface XUserInfoResponse {
   status: string;
-  data: XUserInfo;
+  data: XUserInfo | XUnavailableUser;
   msg?: string;
 }
+
+export type XAccountErrorCode = "ACCOUNT_NOT_FOUND" | "ACCOUNT_UNAVAILABLE";
 
 export class XApiError extends Error {
   status: number;
   details: unknown;
+  code: XAccountErrorCode | null;
 
-  constructor(message: string, status: number, details?: unknown) {
+  constructor(message: string, status: number, details?: unknown, code?: XAccountErrorCode) {
     super(message);
     this.name = "XApiError";
     this.status = status;
     this.details = details ?? null;
+    this.code = code ?? null;
   }
 }
 
@@ -181,7 +197,11 @@ function getErrorMessage(payload: unknown): string {
   if (!isObject(payload)) return "Social API request failed.";
   const errorPayload = payload as ErrorLikePayload;
   return (
-    errorPayload.msg || errorPayload.message || errorPayload.error || "Social API request failed."
+    errorPayload.msg ||
+    errorPayload.message ||
+    errorPayload.error ||
+    errorPayload.detail ||
+    "Social API request failed."
   );
 }
 
@@ -274,6 +294,25 @@ export async function fetchArticle(tweetId: string, apiKey?: string): Promise<XA
   return xApiGet<XArticleResponse>("/twitter/article", { tweet_id: tweetId }, { apiKey });
 }
 
+export function getTimelineTweets(response: XUserTweetsResponse): XPost[] {
+  return response.data?.tweets ?? response.tweets ?? [];
+}
+
 export async function fetchUserInfo(userName: string, apiKey?: string): Promise<XUserInfoResponse> {
-  return xApiGet<XUserInfoResponse>("/twitter/user/info", { userName }, { apiKey });
+  try {
+    return await xApiGet<XUserInfoResponse>("/twitter/user/info", { userName }, { apiKey });
+  } catch (error) {
+    // Missing handles return HTTP 200 with status "error" and msg "user not found".
+    if (error instanceof XApiError && /user not found/i.test(error.message)) {
+      throw new XApiError(error.message, 404, error.details, "ACCOUNT_NOT_FOUND");
+    }
+    throw error;
+  }
+}
+
+export async function fetchUserId(userName: string, apiKey?: string): Promise<string> {
+  const { data } = await fetchUserInfo(userName, apiKey);
+  if (!data.unavailable && data.id) return data.id;
+  const message = (data.unavailable && data.message) || "Account unavailable.";
+  throw new XApiError(message, 404, data, "ACCOUNT_UNAVAILABLE");
 }

@@ -214,6 +214,14 @@ createServer(async (req, res) => {
         },
       });
     }
+    if (path === "/twitter/user/info" && url.searchParams.get("userName") === "missing")
+      return json({ status: "error", msg: "user not found", data: null });
+    if (path === "/twitter/user/info" && url.searchParams.get("userName") === "suspended")
+      return json({
+        status: "success",
+        msg: "success",
+        data: { unavailable: true, message: "User is suspended", unavailableReason: "Suspended" },
+      });
     if (path === "/twitter/user/info")
       return json({
         status: "success",
