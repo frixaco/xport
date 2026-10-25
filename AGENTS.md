@@ -76,7 +76,12 @@ pn --filter @frixaco/xport exec tsx json-to-text.ts <input.json>
 
 - Hosting: Railway.
 - Domain: `xport.frixaco.com`.
-- Database: PostgreSQL.
+- Database: PostgreSQL, the shared `Postgres` service in Railway project `main`. The app reaches it
+  over the private network (`postgres.railway.internal`). Its public TCP proxy is off on purpose, so
+  don't recreate it. To run local scripts against production (`credits:*`, `db:migrate`), open an
+  SSH tunnel with `railway connect Postgres --tunnel-only --port 55432` and point `DATABASE_URL` at
+  `127.0.0.1:55432` (same user, password and database `railway`); `web/.env.production` already
+  does.
 - Runtime: Node.js, pnpm 11.x.
 - Build/start/healthcheck are defined in `.railway/railway.ts` (Railway IaC partial for `xport-web`). Preview with `railway config plan`; apply with `railway config apply`. Railway does not read it on deploy.
 - Production env vars are managed in Railway, not committed files.
@@ -91,7 +96,7 @@ railway up --detach
 railway service status
 railway logs
 railway run -- <cmd>
-railway connect Postgres
+railway connect Postgres  # over SSH; add --tunnel-only --port 55432 for local scripts
 ```
 
 Database schema is managed with Drizzle:
