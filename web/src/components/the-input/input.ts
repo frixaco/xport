@@ -12,6 +12,7 @@ export const examples = [
     label: "JavaRevisited article",
     value: "https://x.com/javarevisited/article/2020886352838225926",
   },
+  { label: "My bookmarks", value: "https://x.com/i/bookmarks" },
 ];
 
 export { buildRequestConfig, detectUrlType } from "@xport/core";

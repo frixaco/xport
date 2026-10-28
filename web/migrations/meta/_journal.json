@@ -36,6 +36,13 @@
       "when": 1790676018556,
       "tag": "0004_adorable_toxin",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793183512905,
+      "tag": "0005_many_cassandra_nova",
+      "breakpoints": true
     }
   ]
 }

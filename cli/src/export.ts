@@ -3,6 +3,7 @@ import { access, mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import {
+  BOOKMARKS_URL,
   buildFetchJobResult,
   buildRequestConfig,
   detectUrlType,
@@ -47,7 +48,7 @@ interface JobTweetPage {
 
 function printExportHelp(command = "export"): void {
   process.stdout.write(`Usage:
-  xport ${command} [options] <input>
+  xport ${command} [options]${command === "bookmarks" ? "" : " <input>"}
 
 Options:
   --format <markdown|json>  Export format (default: markdown)
@@ -60,7 +61,9 @@ Examples:
   ${
     command === "export"
       ? 'xport export --format markdown --out . "https://x.com/burakeregar/status/2020852442230120752"\n  xport export --format json --stdout "@frixaco"'
-      : `xport ${command} --format markdown --out . "@frixaco"`
+      : command === "bookmarks"
+        ? "xport bookmarks --format markdown --out ."
+        : `xport ${command} --format markdown --out . "@frixaco"`
   }
 `);
 }
@@ -413,6 +416,14 @@ export async function commandPosts(ctx: CommandContext, args: string[]): Promise
 
 export async function commandReplies(ctx: CommandContext, args: string[]): Promise<void> {
   return runExportCommand(ctx, args, "replies");
+}
+
+export async function commandBookmarks(ctx: CommandContext, args: string[]): Promise<void> {
+  if (args.includes("--help") || args.includes("-h")) {
+    printExportHelp("bookmarks");
+    return;
+  }
+  return runExportCommand(ctx, [...args, BOOKMARKS_URL]);
 }
 
 export async function commandStop(ctx: CommandContext, args: string[]): Promise<void> {

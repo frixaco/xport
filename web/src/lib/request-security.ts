@@ -44,6 +44,15 @@ export function publicJobError(code: string | null): { code: string; message: st
   if (code === "ACCOUNT_UNAVAILABLE") {
     return { code, message: "That X (ex-Twitter) account is suspended or unavailable." };
   }
+  if (code === "X_NOT_LINKED") {
+    return { code, message: "Connect your X (ex-Twitter) account to export bookmarks." };
+  }
+  if (code === "X_AUTH_REQUIRED") {
+    return {
+      code,
+      message: "Reconnect your X (ex-Twitter) account to export bookmarks.",
+    };
+  }
   if (code === "UPSTREAM_ERROR") {
     return {
       code,

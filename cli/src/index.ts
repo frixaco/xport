@@ -2,7 +2,13 @@
 import process from "node:process";
 import { commandCredits, commandLogin, commandLogout, commandWhoami } from "./auth.ts";
 import { CliError, DEFAULT_BASE_URL, normalizeBaseUrl, type CommandContext } from "./common.ts";
-import { commandExport, commandPosts, commandReplies, commandStop } from "./export.ts";
+import {
+  commandBookmarks,
+  commandExport,
+  commandPosts,
+  commandReplies,
+  commandStop,
+} from "./export.ts";
 
 function printHelp(): void {
   process.stdout.write(`Xport CLI
@@ -15,6 +21,7 @@ Usage:
   xport export [options] <input>
   xport posts [options] <account>
   xport replies [options] <account>
+  xport bookmarks [options]
   xport stop <jobId>
 
 Export options must come before the input.
@@ -36,6 +43,7 @@ Examples:
   xport export --format json --stdout "@frixaco"
   xport posts --format markdown --out . "@frixaco"
   xport replies --format json --stdout "@frixaco"
+  xport bookmarks --format markdown --out .
   xport stop 5865e60e-ef8e-40e4-96b4-cbdff6cff927
 `);
 }
@@ -72,6 +80,9 @@ async function main(): Promise<void> {
       return;
     case "replies":
       await commandReplies(ctx, args);
+      return;
+    case "bookmarks":
+      await commandBookmarks(ctx, args);
       return;
     case "stop":
       await commandStop(ctx, args);

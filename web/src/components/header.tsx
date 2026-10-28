@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ArrowUpRight, LoaderCircle, LogOut, Terminal } from "lucide-react";
+import { ArrowUpRight, Bookmark, LoaderCircle, LogOut, Terminal, Unlink } from "lucide-react";
 import { usePostHog } from "@posthog/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,13 +21,14 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { authClient } from "@/lib/auth-client";
+import { authClient, connectXAccount } from "@/lib/auth-client";
 import { CreditsDisplay } from "@/components/credits-display";
 import { ModeToggle } from "@/components/mode-toggle";
 import { creditsQueryKey } from "@/lib/credits-store";
 
 const ACCOUNT_SEEN_SESSION_KEY = "xport-account-seen";
 const sessionQueryKey = ["auth", "session"] as const;
+const accountsQueryKey = ["auth", "accounts"] as const;
 
 async function fetchSession(): Promise<typeof authClient.$Infer.Session | null> {
   const result = await authClient.getSession();
@@ -80,6 +81,16 @@ export function Header() {
       queryClient.setQueryData(sessionQueryKey, null);
       queryClient.invalidateQueries({ queryKey: creditsQueryKey });
     },
+  });
+  const accountsQuery = useQuery({
+    queryKey: accountsQueryKey,
+    queryFn: async () => (await authClient.listAccounts()).data ?? [],
+    enabled: Boolean(sessionQuery.data?.user),
+  });
+  const xAccount = accountsQuery.data?.find((account) => account.providerId === "twitter");
+  const unlinkXMutation = useMutation({
+    mutationFn: (accountId: string) => authClient.unlinkAccount({ accountId }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: accountsQueryKey }),
   });
   const handleSignOut = () => {
     signOutMutation.mutate();
@@ -220,6 +231,18 @@ export function Header() {
                   </div>
                 </DropdownMenuLabel>
               </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              {xAccount ? (
+                <DropdownMenuItem onClick={() => unlinkXMutation.mutate(xAccount.id)}>
+                  <Unlink />
+                  <span>Disconnect X account</span>
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onClick={() => void connectXAccount()}>
+                  <Bookmark />
+                  <span>Connect X for bookmarks</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onClick={handleSignOut}>
                 <LogOut />

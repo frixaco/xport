@@ -1,6 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { fetchJobs, fetchTweets } from "../db/schema.ts";
-import { calculateTweetListCredits, TWEETS_PER_CREDIT } from "../../../core/src/credits.ts";
+import { calculateTweetListCredits, tweetsPerCredit } from "../../../core/src/credits.ts";
 import { db } from "./db.ts";
 import { assertBillingEnabled, lockCreditBalance, recordCreditChange } from "./credit-ledger.ts";
 import type { XPost } from "./x-api.ts";
@@ -64,9 +64,10 @@ export async function settleFetchPage(input: {
       seen.add(tweet.id);
       return true;
     });
-    const capacity = Math.max(0, (job.chargedCredits + balance) * TWEETS_PER_CREDIT - stored);
+    const perCredit = tweetsPerCredit(job.requestType);
+    const capacity = Math.max(0, (job.chargedCredits + balance) * perCredit - stored);
     const affordable = unique.slice(0, capacity);
-    const required = calculateTweetListCredits(stored + affordable.length);
+    const required = calculateTweetListCredits(stored + affordable.length, perCredit);
     const insufficient =
       affordable.length < unique.length || required > job.chargedCredits + balance;
     const delta =

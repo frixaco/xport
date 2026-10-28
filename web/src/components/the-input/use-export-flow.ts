@@ -3,8 +3,15 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { useNavigate } from "@tanstack/react-router";
 import { usePostHog } from "@posthog/react";
 import { toast } from "sonner";
+import { BOOKMARKS_URL } from "@xport/core";
 import { parseTwitterInput, parseUsername } from "@/lib/url-parser";
-import { createFetchJob, fetchArticleResult, fetchJobStatus, stopFetchJob } from "./api";
+import {
+  ApiRequestError,
+  createFetchJob,
+  fetchArticleResult,
+  fetchJobStatus,
+  stopFetchJob,
+} from "./api";
 import type { CreateFetchJobInput, JobTweetPage } from "./api";
 import { fetchJobQueries, fetchJobQueryKeys } from "./queries";
 import { isValidJobId, type HomeSearch, withoutEmptySearchValues } from "./search";
@@ -70,6 +77,9 @@ function createActiveJobFromResume(jobId: string, payload: FetchJobResumeRespons
 }
 
 function createActiveJobFromInput(jobId: string, request: CreateFetchJobInput): ActiveJob {
+  if (detectUrlType(request.input) === "Bookmarks") {
+    return { jobId, requestType: "bookmarks", inputNormalized: null, sourceUsername: null };
+  }
   const parsed = parseTwitterInput(request.input);
 
   return {
@@ -205,7 +215,7 @@ export function useExportFlow(search: HomeSearch) {
   const resumeJobMutation = useMutation({
     mutationFn: fetchJobStatus,
     onSuccess: (payload, jobId) => {
-      setValue(payload.inputRaw);
+      setValue(payload.requestType === "bookmarks" ? BOOKMARKS_URL : payload.inputRaw);
       queryClient.setQueryData(fetchJobQueryKeys.status(jobId), payload);
     },
     onError: (error, jobId) => {
@@ -274,10 +284,15 @@ export function useExportFlow(search: HomeSearch) {
           jobTweets,
           jobMainTweet,
           jobStatus,
-          activeJob.sourceUsername,
+          activeJob.sourceUsername ?? parseUsername(jobStatus.inputRaw),
         )
       : null;
   const displayedResult = articleMutation.data ?? jobResult;
+  const xLinkErrorCode =
+    (createJobMutation.error instanceof ApiRequestError ? createJobMutation.error.code : null) ??
+    jobStatus?.error?.code ??
+    null;
+  const needsXLink = xLinkErrorCode === "X_NOT_LINKED" || xLinkErrorCode === "X_AUTH_REQUIRED";
   const error =
     validationError ??
     getErrorMessage(
@@ -409,7 +424,7 @@ export function useExportFlow(search: HomeSearch) {
       tweets,
       mainTweet,
       jobStatus,
-      activeJob.sourceUsername,
+      activeJob.sourceUsername ?? parseUsername(jobStatus.inputRaw),
     );
   }
 
@@ -543,6 +558,7 @@ export function useExportFlow(search: HomeSearch) {
     jobStatus,
     loadingMore: jobTweetsQuery.isFetchingNextPage,
     markdownCopied,
+    needsXLink,
     setValue,
     showExportActions,
     showCopyAction,

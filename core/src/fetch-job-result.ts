@@ -1,5 +1,6 @@
 import { extractUsernameFromTweetCard } from "./tweet-card.ts";
 import type {
+  AccountExportMode,
   FetchJobRequestType,
   FetchJobStatus,
   FetchJobStatusResponse,
@@ -8,6 +9,16 @@ import type {
   TweetCardModel,
   UserTweetsResultState,
 } from "./types.ts";
+
+const ACCOUNT_RESULTS: Record<
+  Exclude<FetchJobRequestType, "thread">,
+  { mode: AccountExportMode; label: string }
+> = {
+  user: { mode: "posts", label: "User posts" },
+  timeline: { mode: "timeline", label: "User timeline" },
+  replies: { mode: "replies", label: "User replies" },
+  bookmarks: { mode: "bookmarks", label: "Bookmarks" },
+};
 
 export function buildFetchJobResult(
   requestType: FetchJobRequestType,
@@ -38,17 +49,13 @@ export function buildFetchJobResult(
     };
   }
 
+  const { mode, label } = ACCOUNT_RESULTS[requestType];
   return {
     kind: "user-tweets",
-    mode: requestType === "timeline" ? "timeline" : requestType === "replies" ? "replies" : "posts",
+    mode,
     tweets: mainTweet ? [mainTweet, ...tweets] : tweets,
     username,
-    label:
-      requestType === "timeline"
-        ? "User timeline"
-        : requestType === "replies"
-          ? "User replies"
-          : "User posts",
+    label,
     usage,
   };
 }

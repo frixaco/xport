@@ -29,6 +29,8 @@ function resultHeaderLabel(result: ResultState, isFetchingEmpty = false): string
   if (result.kind === "article") return "Article";
   if (isFetchingEmpty) return result.kind === "thread" ? "Fetching thread" : "Fetching posts";
   if (result.kind === "user-tweets") {
+    if (result.mode === "bookmarks")
+      return `Fetched ${formatCount(result.tweets.length, "bookmark")}`;
     const replies = result.tweets.filter((tweet) => tweet.replyTo).length;
     const posts = result.tweets.length - replies;
     if (result.mode === "replies") return `Fetched ${formatCount(replies, "reply")}`;

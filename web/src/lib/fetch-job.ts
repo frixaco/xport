@@ -10,12 +10,14 @@ import {
   XApiError,
   type XPost,
 } from "@/lib/x-api";
+import { getXAccessToken } from "@/lib/auth";
+import { fetchBookmarksPage } from "@/lib/x-bookmarks";
 import { assertBillingEnabled } from "./credit-ledger.ts";
 import { settleFetchPage } from "./fetch-job-settlement.ts";
 import { captureServerEvent, captureServerException } from "@/lib/server-telemetry";
 
 type FetchJobStatus = "queued" | "running" | "completed" | "stopped" | "failed";
-export type FetchJobRequestType = "thread" | "user" | "timeline" | "replies";
+export type FetchJobRequestType = "thread" | "user" | "timeline" | "replies" | "bookmarks";
 const ACTIVE_FETCH_JOB_STATUSES: FetchJobStatus[] = ["queued", "running"];
 const TERMINAL_FETCH_JOB_STATUSES: FetchJobStatus[] = ["completed", "stopped", "failed"];
 const MAX_ACTIVE_JOBS_PER_USER = 2;
@@ -277,11 +279,12 @@ async function runFetchLoop(jobId: string): Promise<void> {
   let pagesFetched = job.pagesFetched;
   const seenCursors = new Set<string>();
   const isThread = job.requestType === "thread";
+  const isBookmarks = job.requestType === "bookmarks";
   const deadline = Date.now() + MAX_FETCH_DURATION_MS;
 
   try {
     let userId: string | undefined;
-    if (!isThread) {
+    if (!isThread && !isBookmarks) {
       userId = await fetchWithRetry(() => fetchUserId(job.inputNormalized));
     }
 
@@ -317,7 +320,17 @@ async function runFetchLoop(jobId: string): Promise<void> {
       let hasNextPage: boolean;
       let nextCursor: string | undefined;
 
-      if (isThread) {
+      if (isBookmarks) {
+        // Fetch the token per page; Better Auth refreshes it when it is about to expire.
+        const accessToken = await getXAccessToken(job.ownerUserId);
+        const response = await fetchWithRetry(() =>
+          fetchBookmarksPage(accessToken, job.inputNormalized, cursor),
+        );
+        tweets = response.tweets;
+        rawPageTweetCount = tweets.length;
+        hasNextPage = Boolean(response.nextCursor);
+        nextCursor = response.nextCursor;
+      } else if (isThread) {
         const response = await fetchWithRetry(() =>
           fetchThreadContext(job.inputNormalized, cursor),
         );

@@ -2,9 +2,9 @@ export type ParsedURL =
   | { type: "tweet"; tweetId: string; username?: string }
   | { type: "user"; username: string };
 
-export type DetectedType = "Tweet" | "User" | "Thread" | "Article" | null;
+export type DetectedType = "Tweet" | "User" | "Thread" | "Article" | "Bookmarks" | null;
 
-export type RequestType = "thread" | "user-tweets" | "article";
+export type RequestType = "thread" | "user-tweets" | "article" | "bookmarks";
 
 export interface RequestConfig {
   type: RequestType;
@@ -89,9 +89,9 @@ export type ResultState = ThreadResultState | UserTweetsResultState | ArticleRes
 
 export type FetchJobStatus = "running" | "queued" | "completed" | "stopped" | "failed";
 
-export type AccountExportMode = "posts" | "timeline" | "replies";
+export type AccountExportMode = "posts" | "timeline" | "replies" | "bookmarks";
 
-export type FetchJobRequestType = "thread" | "user" | "timeline" | "replies";
+export type FetchJobRequestType = "thread" | "user" | "timeline" | "replies" | "bookmarks";
 
 export interface FetchJobStatusResponse {
   status: FetchJobStatus;

@@ -165,7 +165,11 @@ export interface XUserInfoResponse {
   msg?: string;
 }
 
-export type XAccountErrorCode = "ACCOUNT_NOT_FOUND" | "ACCOUNT_UNAVAILABLE";
+export type XAccountErrorCode =
+  | "ACCOUNT_NOT_FOUND"
+  | "ACCOUNT_UNAVAILABLE"
+  | "X_NOT_LINKED"
+  | "X_AUTH_REQUIRED";
 
 export class XApiError extends Error {
   status: number;

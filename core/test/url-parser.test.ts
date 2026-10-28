@@ -18,6 +18,9 @@ test("source URLs, IDs and usernames route to the correct export", () => {
       kind === "article" ? "article" : "thread",
     );
   }
+  for (const input of ["https://x.com/i/bookmarks", "twitter.com/i/bookmarks/"]) {
+    assert.equal(buildRequestConfig(input, detectUrlType(input))?.type, "bookmarks");
+  }
   for (const input of [
     "",
     "@",

@@ -255,9 +255,13 @@ function fileBaseName(result: ResultState, options?: { isPartial?: boolean }): s
     return `${usernamePrefix}-thread${partialSuffix}`;
   }
 
-  return result.mode === "replies"
-    ? `${usernamePrefix}-replies${partialSuffix}`
-    : `${usernamePrefix}-user-posts${partialSuffix}`;
+  const kindSuffix =
+    result.mode === "replies"
+      ? "replies"
+      : result.mode === "bookmarks"
+        ? "bookmarks"
+        : "user-posts";
+  return `${usernamePrefix}-${kindSuffix}${partialSuffix}`;
 }
 
 export function getDownloadPayload(

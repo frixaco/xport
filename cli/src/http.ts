@@ -1,5 +1,5 @@
 import { CliError, type CommandContext } from "./common.ts";
-import { extractErrorMessage } from "./core.ts";
+import { BOOKMARKS_URL, extractErrorMessage } from "./core.ts";
 
 export function apiUrl(ctx: CommandContext, route: string): string {
   return new URL(route, `${ctx.baseUrl}/`).toString();
@@ -32,6 +32,11 @@ export async function requestJson<T>(
     const message = extractErrorMessage(payload) ?? `Request failed (${response.status}).`;
     if (response.status === 401) {
       throw new CliError(`${message} Run \`xport login\` first, or set XPORT_TOKEN.`);
+    }
+    const code = (payload as { code?: unknown } | null)?.code;
+    if (code === "X_NOT_LINKED" || code === "X_AUTH_REQUIRED") {
+      const connectUrl = `${ctx.baseUrl}/?input=${encodeURIComponent(BOOKMARKS_URL)}`;
+      throw new CliError(`${message} Open ${connectUrl} and choose Connect X account.`);
     }
     throw new CliError(message);
   }

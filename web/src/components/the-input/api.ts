@@ -27,11 +27,23 @@ export interface JobTweetPage {
   total: number;
 }
 
+export class ApiRequestError extends Error {
+  code: string | null;
+
+  constructor(message: string, code: string | null) {
+    super(message);
+    this.code = code;
+  }
+}
+
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
-  const payload = (await response.json().catch(() => null)) as unknown;
+  const payload = (await response.json().catch(() => null)) as { code?: unknown } | null;
   if (!response.ok) {
-    throw new Error(extractErrorMessage(payload) ?? `Request failed (${response.status}).`);
+    throw new ApiRequestError(
+      extractErrorMessage(payload) ?? `Request failed (${response.status}).`,
+      typeof payload?.code === "string" ? payload.code : null,
+    );
   }
   return payload as T;
 }

@@ -18,6 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { connectXAccount } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import type { HomeSearch } from "./search";
 import { examples } from "./input";
@@ -122,6 +123,14 @@ function ExportActions({
   );
 }
 
+function ConnectXButton() {
+  return (
+    <Button type="button" size="sm" className="h-8 px-2.5" onClick={() => void connectXAccount()}>
+      Connect X account
+    </Button>
+  );
+}
+
 export function TheInput({ search }: { search: HomeSearch }) {
   const {
     activeJob,
@@ -142,6 +151,7 @@ export function TheInput({ search }: { search: HomeSearch }) {
     jobStatus,
     loadingMore,
     markdownCopied,
+    needsXLink,
     setValue,
     showExportActions,
     showCopyAction,
@@ -313,6 +323,7 @@ export function TheInput({ search }: { search: HomeSearch }) {
           {jobStatus?.error && (
             <span className="text-destructive">{jobStatus.error.message ?? "Unknown error"}</span>
           )}
+          {needsXLink && displayedResult && <ConnectXButton />}
           {isJobActive && <LoaderCircle className="size-3.5 animate-spin" />}
           <div className="ml-auto flex items-center gap-2">
             <ExportActions
@@ -346,7 +357,10 @@ export function TheInput({ search }: { search: HomeSearch }) {
       {showResultLoading && <ResultDisplayLoading />}
 
       {!isLoading && error && !displayedResult && (
-        <p className="animate-in pt-2 text-sm text-destructive fade-in">{error}</p>
+        <div className="flex animate-in flex-col items-center gap-3 pt-2 fade-in">
+          <p className="text-sm text-destructive">{error}</p>
+          {needsXLink && <ConnectXButton />}
+        </div>
       )}
 
       {displayedResult && (

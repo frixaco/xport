@@ -128,9 +128,15 @@ export function parseUsername(input: string): string | null {
   return parsed.username ?? null;
 }
 
+export const BOOKMARKS_URL = "https://x.com/i/bookmarks";
+
 export function detectUrlType(value: string): DetectedType {
   const trimmed = value.trim();
   if (!trimmed) return null;
+
+  if (/^(https?:\/\/)?(www\.)?(twitter\.com|x\.com)\/i\/bookmarks\/?$/i.test(trimmed)) {
+    return "Bookmarks";
+  }
 
   if (/\/article\/\d+/.test(trimmed)) return "Article";
   if (/\/thread\/\d+/.test(trimmed)) return "Thread";
@@ -168,6 +174,10 @@ export function buildRequestConfig(
 
   if (detectedType === "User") {
     return { type: "user-tweets" };
+  }
+
+  if (detectedType === "Bookmarks") {
+    return { type: "bookmarks" };
   }
 
   const parsed = parseTwitterInput(trimmed);

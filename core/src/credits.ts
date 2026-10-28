@@ -1,4 +1,4 @@
-import type { UsageMetadataInput, XportUsageMetadata } from "./types.ts";
+import type { FetchJobRequestType, UsageMetadataInput, XportUsageMetadata } from "./types.ts";
 
 export const MIN_PREFLIGHT_CREDITS = 1;
 export const TWEETS_PER_CREDIT = 20;
@@ -42,9 +42,17 @@ export function normalizeUsageCredits(value: unknown): number {
   return Math.max(1, Math.ceil(asNumber(value)));
 }
 
-export function calculateTweetListCredits(tweetCount: number): number {
+// X API bills each bookmark at $0.005, so one credit ($0.008) covers one bookmark.
+export function tweetsPerCredit(requestType: FetchJobRequestType): number {
+  return requestType === "bookmarks" ? 1 : TWEETS_PER_CREDIT;
+}
+
+export function calculateTweetListCredits(
+  tweetCount: number,
+  perCredit: number = TWEETS_PER_CREDIT,
+): number {
   const normalizedTweetCount = asNonNegativeInteger(tweetCount);
-  return Math.max(1, Math.ceil(normalizedTweetCount / TWEETS_PER_CREDIT));
+  return Math.max(1, Math.ceil(normalizedTweetCount / perCredit));
 }
 
 export function buildUsageMetadata(input: UsageMetadataInput): XportUsageMetadata {

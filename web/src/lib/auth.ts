@@ -11,6 +11,9 @@ import * as schema from "@/db/schema";
 import { db } from "@/lib/db";
 import { captureServerEvent } from "@/lib/server-telemetry";
 import { polarClient } from "./polar";
+import { and, eq } from "drizzle-orm";
+import { fetchXMe, X_SCOPES } from "./x-bookmarks";
+import { XApiError } from "./x-api";
 
 const CLI_CLIENT_ID = "xport-cli";
 const BETTER_AUTH_BASE_URL = process.env.BETTER_AUTH_URL?.replace(/\/+$/, "");
@@ -61,6 +64,36 @@ export const auth = betterAuth({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     },
+    // X is link-only: it grants bookmark access to an existing Xport user.
+    twitter: {
+      clientId: process.env.X_CLIENT_ID!,
+      clientSecret: process.env.X_CLIENT_SECRET!,
+      disableSignUp: true,
+      disableDefaultScope: true,
+      scope: X_SCOPES,
+      // The default makes a second /users/me call for users.email, which the X app does not request.
+      getUserInfo: async ({ accessToken }) => {
+        if (!accessToken) return null;
+        const me = await fetchXMe(accessToken);
+        return {
+          user: {
+            name: me.name,
+            email: `${me.id}@twitter.placeholder`,
+            image: me.profile_image_url,
+            emailVerified: false,
+          },
+          data: { data: me },
+        };
+      },
+    },
+  },
+  account: {
+    encryptOAuthTokens: true,
+    accountLinking: {
+      trustedProviders: ["twitter"],
+      // X does not return an email that could match the Xport user's email.
+      allowDifferentEmails: true,
+    },
   },
   onAPIError: {
     errorURL: "/auth-error",
@@ -91,3 +124,26 @@ export const auth = betterAuth({
     tanstackStartCookies(),
   ],
 });
+
+/** Returns a valid access token for the user's linked X account, refreshing it when needed. */
+export async function getXAccessToken(userId: string): Promise<string> {
+  const [linked] = await db
+    .select({ id: schema.account.id, scope: schema.account.scope })
+    .from(schema.account)
+    .where(and(eq(schema.account.userId, userId), eq(schema.account.providerId, "twitter")))
+    .limit(1);
+  if (!linked) {
+    throw new XApiError("No linked X account.", 409, null, "X_NOT_LINKED");
+  }
+  if (!linked.scope?.split(/[ ,]/).includes("bookmark.read")) {
+    throw new XApiError("Linked X account lacks bookmark.read.", 409, null, "X_AUTH_REQUIRED");
+  }
+  try {
+    const { accessToken } = await auth.api.getAccessToken({
+      body: { accountId: linked.id, userId },
+    });
+    return accessToken;
+  } catch (error) {
+    throw new XApiError("Could not refresh the X access token.", 409, error, "X_AUTH_REQUIRED");
+  }
+}

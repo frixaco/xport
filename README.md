@@ -95,6 +95,7 @@ Required:
 - `BETTER_AUTH_URL` - origin used for auth; must match the deployed domain in production.
 - `BETTER_AUTH_SECRET` - auth secret.
 - `X_API_URL`, `X_API_KEY` - upstream X data API; server-side only.
+- `X_CLIENT_ID` / `X_CLIENT_SECRET` - X OAuth 2.0 app for bookmarks export. Users link their X account; register `<BETTER_AUTH_URL>/api/auth/callback/twitter` as a callback.
 - `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` or `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` - at least one OAuth provider for sign-in.
 
 Optional:
@@ -147,6 +148,7 @@ xport login
 xport export --format markdown --out . "https://x.com/burakeregar/status/2020852442230120752"
 xport posts --format markdown --out . "@frixaco"
 xport replies --format markdown --out . "@frixaco"
+xport bookmarks --format markdown --out .
 xport stop <jobId>
 ```
 

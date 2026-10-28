@@ -25,6 +25,7 @@ export type {
 
 export { isNonEmptyString, isObject } from "./payload.ts";
 export {
+  BOOKMARKS_URL,
   buildRequestConfig,
   detectUrlType,
   parseTweetId,
@@ -61,6 +62,7 @@ export {
   MIN_PREFLIGHT_CREDITS,
   normalizeUsageCredits,
   TWEETS_PER_CREDIT,
+  tweetsPerCredit,
   withUsageMetadata,
 } from "./credits.ts";
 export {

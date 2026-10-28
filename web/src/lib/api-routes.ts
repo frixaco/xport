@@ -46,7 +46,7 @@ function handleApiRouteError(error: unknown, fallbackMessage: string): Response 
 
   if (error instanceof XApiError && error.code) {
     const publicError = publicJobError(error.code)!;
-    return errorJson(publicError.message, 404, { code: publicError.code });
+    return errorJson(publicError.message, error.status, { code: publicError.code });
   }
 
   if (error instanceof XApiError) {
