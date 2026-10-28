@@ -11,8 +11,9 @@ import {
   type XPost,
 } from "@/lib/x-api";
 import { getXAccessToken } from "@/lib/auth";
-import { fetchBookmarksPage } from "@/lib/x-bookmarks";
-import { assertBillingEnabled } from "./credit-ledger.ts";
+import { fetchBookmarksPage, MAX_BOOKMARKS_PER_PAGE } from "@/lib/x-bookmarks";
+import { affordableItems, BOOKMARK_RATE } from "@/lib/credits";
+import { assertBillingEnabled, getCreditBalance } from "./credit-ledger.ts";
 import { settleFetchPage } from "./fetch-job-settlement.ts";
 import { captureServerEvent, captureServerException } from "@/lib/server-telemetry";
 
@@ -48,6 +49,7 @@ interface CreateFetchJobParams {
   requestType: FetchJobRequestType;
   inputRaw: string;
   inputNormalized: string;
+  itemLimit?: number;
 }
 
 export async function createFetchJob(params: CreateFetchJobParams): Promise<string> {
@@ -82,6 +84,7 @@ export async function createFetchJob(params: CreateFetchJobParams): Promise<stri
         requestType: params.requestType,
         inputRaw: params.inputRaw,
         inputNormalized: params.inputNormalized,
+        itemLimit: params.itemLimit,
         expiresAt: sql`now() + interval '1 hour'`,
       })
       .returning({ id: fetchJobs.id });
@@ -277,6 +280,7 @@ async function runFetchLoop(jobId: string): Promise<void> {
 
   let cursor = job.nextCursor ?? undefined;
   let pagesFetched = job.pagesFetched;
+  let progress = { storedTweets: job.storedTweets, chargedCredits: job.chargedCredits };
   const seenCursors = new Set<string>();
   const isThread = job.requestType === "thread";
   const isBookmarks = job.requestType === "bookmarks";
@@ -321,10 +325,24 @@ async function runFetchLoop(jobId: string): Promise<void> {
       let nextCursor: string | undefined;
 
       if (isBookmarks) {
+        const balance = await getCreditBalance(job.ownerUserId);
+        const payable =
+          affordableItems(progress.chargedCredits + balance, BOOKMARK_RATE) - progress.storedTweets;
+        if (payable <= 0) {
+          // Stop before calling X: it bills every bookmark it returns, paid for or not.
+          await finishJob(jobId, runnerId, "stopped", {
+            code: "INSUFFICIENT_CREDITS",
+            message: "Insufficient credits. Paid results remain available.",
+          });
+          return;
+        }
+        const wanted =
+          job.itemLimit === null ? MAX_BOOKMARKS_PER_PAGE : job.itemLimit - progress.storedTweets;
+        const maxResults = Math.min(MAX_BOOKMARKS_PER_PAGE, payable, wanted);
         // Fetch the token per page; Better Auth refreshes it when it is about to expire.
         const accessToken = await getXAccessToken(job.ownerUserId);
         const response = await fetchWithRetry(() =>
-          fetchBookmarksPage(accessToken, job.inputNormalized, cursor),
+          fetchBookmarksPage(accessToken, job.inputNormalized, maxResults, cursor),
         );
         tweets = response.tweets;
         rawPageTweetCount = tweets.length;
@@ -377,6 +395,7 @@ async function runFetchLoop(jobId: string): Promise<void> {
         return;
       }
       pagesFetched = settled.pagesFetched;
+      progress = settled;
 
       cursor = nextCursor;
     }

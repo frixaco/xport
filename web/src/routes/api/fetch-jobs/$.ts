@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { detectUrlType } from "@xport/core";
 import { parseTwitterInput } from "@/lib/url-parser";
 import { getXAccessToken } from "@/lib/auth";
-import { fetchXMe } from "@/lib/x-bookmarks";
+import { fetchXMe, MAX_BOOKMARKS } from "@/lib/x-bookmarks";
 import { getBillingUser } from "@/lib/billing-access";
 import { getCreditBalance, BillingAccessError } from "@/lib/credit-ledger";
 import { errorJson, requireTrustedMutation, withApiRouteTelemetry } from "@/lib/api-routes";
@@ -30,7 +30,7 @@ export const Route = createFileRoute("/api/fetch-jobs/$")({
             const userId = await getBillingUser(request);
             telemetry.userId = userId;
 
-            let body: { input?: unknown; mode?: unknown } | null;
+            let body: { input?: unknown; mode?: unknown; limit?: unknown } | null;
             try {
               body = await request.json();
             } catch {
@@ -45,12 +45,28 @@ export const Route = createFileRoute("/api/fetch-jobs/$")({
             let requestType: FetchJobRequestType;
             let inputRaw = input;
             let inputNormalized = "";
+            let itemLimit: number | undefined;
             if (detectUrlType(input) === "Bookmarks") {
               if (body?.mode !== undefined) {
                 return errorJson("Mode is only valid for account exports.", 400);
               }
+              const limit = body?.limit ?? MAX_BOOKMARKS;
+              if (
+                !Number.isInteger(limit) ||
+                (limit as number) < 1 ||
+                (limit as number) > MAX_BOOKMARKS
+              ) {
+                return errorJson(
+                  `Invalid limit. Use a whole number from 1 to ${MAX_BOOKMARKS}.`,
+                  400,
+                );
+              }
               requestType = "bookmarks";
+              itemLimit = limit as number;
             } else {
+              if (body?.limit !== undefined) {
+                return errorJson("Limit is only valid for bookmarks exports.", 400);
+              }
               const parsed = parseTwitterInput(input);
               if (!parsed) {
                 return errorJson("Invalid input. Provide a valid tweet URL/ID or username.", 400);
@@ -91,6 +107,7 @@ export const Route = createFileRoute("/api/fetch-jobs/$")({
               requestType,
               inputRaw,
               inputNormalized,
+              itemLimit,
             });
             telemetry.jobId = jobId;
 

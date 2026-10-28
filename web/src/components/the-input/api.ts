@@ -19,6 +19,8 @@ export interface ActiveFetchJob {
 export interface CreateFetchJobInput {
   input: string;
   mode?: AccountExportMode;
+  /** Most bookmarks to export; only valid for bookmarks. */
+  limit?: number;
 }
 
 export interface JobTweetPage {

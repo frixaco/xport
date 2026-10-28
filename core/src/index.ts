@@ -1,3 +1,4 @@
+export type { CreditRate } from "./credits.ts";
 export type {
   AccountExportMode,
   ArticleResultState,
@@ -56,13 +57,15 @@ export {
   toMarkdown,
 } from "./copy-formats.ts";
 export {
+  affordableItems,
+  BOOKMARK_RATE,
   buildUsageMetadata,
+  creditRate,
   calculateTweetListCredits,
   extractCreditsBalance,
   MIN_PREFLIGHT_CREDITS,
   normalizeUsageCredits,
   TWEETS_PER_CREDIT,
-  tweetsPerCredit,
   withUsageMetadata,
 } from "./credits.ts";
 export {

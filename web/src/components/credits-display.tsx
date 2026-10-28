@@ -83,6 +83,8 @@ function CreditsDisplayInner() {
               ~{TWEETS_PER_CREDIT} posts / credit (threads/users).
               <br />1 article / credit.
               <br />
+              10 bookmarks / 7 credits (X API cost).
+              <br />
               Rounded up per export (min 1 credit). Stop early bills only fetched posts.
             </PopoverDescription>
           </PopoverHeader>

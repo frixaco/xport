@@ -4,7 +4,8 @@ Use pnpm.
 
 ## Product
 
-- Xport exports X (ex-Twitter) posts, threads, user timelines, and articles.
+- Xport exports X (ex-Twitter) posts, threads, user timelines, articles, and the user's own bookmarks.
+- Bookmarks use the official X API with the user's linked X account (Better Auth `twitter` provider, link-only) and are sold at X API cost (10 bookmarks = 7 credits). Users start them manually with a limit; the runner asks X only for bookmarks the user can pay for.
 - Core product: resumable PostgreSQL-backed export jobs. The active worker is an in-process async runner; Postgres is the durable source of truth.
 - Main public page: `/`.
 - API routes: `/api/*`.

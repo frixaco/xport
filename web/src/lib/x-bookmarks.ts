@@ -51,8 +51,10 @@ interface V2BookmarksResponse {
   meta?: { next_token?: string; result_count?: number };
 }
 
+export const MAX_BOOKMARKS_PER_PAGE = 100;
+/** X returns only the most recent 800 bookmarks. */
+export const MAX_BOOKMARKS = 800;
 const BOOKMARK_QUERY = {
-  max_results: "100",
   "tweet.fields":
     "created_at,public_metrics,author_id,conversation_id,in_reply_to_user_id,referenced_tweets,entities,attachments,lang,note_tweet",
   expansions:
@@ -93,12 +95,16 @@ export async function fetchXMe(accessToken: string): Promise<V2User> {
 export async function fetchBookmarksPage(
   accessToken: string,
   xUserId: string,
+  maxResults: number,
   cursor?: string,
 ): Promise<{ tweets: XPost[]; nextCursor?: string }> {
+  // X bills every returned bookmark, so request only what the job can store and charge.
+  const query: Record<string, string> = { ...BOOKMARK_QUERY, max_results: String(maxResults) };
+  if (cursor) query.pagination_token = cursor;
   const response = await xGet<V2BookmarksResponse>(
     accessToken,
     `/users/${encodeURIComponent(xUserId)}/bookmarks`,
-    cursor ? { ...BOOKMARK_QUERY, pagination_token: cursor } : BOOKMARK_QUERY,
+    query,
   );
   const users = new Map(response.includes?.users?.map((user) => [user.id, user]));
   const media = new Map(response.includes?.media?.map((item) => [item.media_key, item]));

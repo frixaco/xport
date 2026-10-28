@@ -42,17 +42,33 @@ export function normalizeUsageCredits(value: unknown): number {
   return Math.max(1, Math.ceil(asNumber(value)));
 }
 
-// X API bills each bookmark at $0.005, so one credit ($0.008) covers one bookmark.
-export function tweetsPerCredit(requestType: FetchJobRequestType): number {
-  return requestType === "bookmarks" ? 1 : TWEETS_PER_CREDIT;
+export interface CreditRate {
+  items: number;
+  credits: number;
+}
+
+const TWEET_RATE: CreditRate = { items: TWEETS_PER_CREDIT, credits: 1 };
+/**
+ * Bookmarks are sold at cost. X bills $0.005 per bookmark; a credit from the $10 / 1,250 pack
+ * nets about $0.0074 after Polar's 4% + $0.40 fee, so 7 credits cover 10 bookmarks.
+ */
+export const BOOKMARK_RATE: CreditRate = { items: 10, credits: 7 };
+
+export function creditRate(requestType: FetchJobRequestType): CreditRate {
+  return requestType === "bookmarks" ? BOOKMARK_RATE : TWEET_RATE;
 }
 
 export function calculateTweetListCredits(
   tweetCount: number,
-  perCredit: number = TWEETS_PER_CREDIT,
+  rate: CreditRate = TWEET_RATE,
 ): number {
   const normalizedTweetCount = asNonNegativeInteger(tweetCount);
-  return Math.max(1, Math.ceil(normalizedTweetCount / perCredit));
+  return Math.max(1, Math.ceil((normalizedTweetCount * rate.credits) / rate.items));
+}
+
+/** Number of items that `credits` pays for at `rate`. */
+export function affordableItems(credits: number, rate: CreditRate): number {
+  return Math.floor((asNonNegativeInteger(credits) * rate.items) / rate.credits);
 }
 
 export function buildUsageMetadata(input: UsageMetadataInput): XportUsageMetadata {

@@ -144,6 +144,8 @@ export const fetchJobs = pgTable(
     chargedCredits: integer("charged_credits").notNull().default(0),
     nextCursor: text("next_cursor"),
     hasNextPage: boolean("has_next_page").notNull().default(true),
+    // Most items the user asked for; null means no limit.
+    itemLimit: integer("item_limit"),
     errorCode: text("error_code"),
     errorMessage: text("error_message"),
     ...timestamps,

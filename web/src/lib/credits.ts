@@ -1,4 +1,6 @@
 export {
+  affordableItems,
+  BOOKMARK_RATE,
   buildUsageMetadata,
   calculateTweetListCredits,
   extractCreditsBalance,

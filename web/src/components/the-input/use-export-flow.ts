@@ -37,6 +37,8 @@ import {
 } from "./copy-formats";
 
 const POLL_INTERVAL_MS = 2000;
+export const BOOKMARK_LIMITS = [25, 100, 400, 800];
+const DEFAULT_BOOKMARK_LIMIT = 100;
 
 type TelemetryProperties = Record<string, string | number | boolean | null | undefined>;
 
@@ -141,6 +143,7 @@ export function useExportFlow(search: HomeSearch) {
   const posthog = usePostHog();
   const queryClient = useQueryClient();
   const [value, setValue] = useState("");
+  const [bookmarkLimit, setBookmarkLimit] = useState(DEFAULT_BOOKMARK_LIMIT);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [markdownCopied, setMarkdownCopied] = useState(false);
 
@@ -363,6 +366,11 @@ export function useExportFlow(search: HomeSearch) {
       return;
     }
 
+    if (requestConfig.type === "bookmarks") {
+      createJobMutation.mutate({ input: trimmed, limit: bookmarkLimit });
+      return;
+    }
+
     createJobMutation.mutate({
       input: trimmed,
       mode: parsedInput?.type === "user" ? "timeline" : undefined,
@@ -385,6 +393,11 @@ export function useExportFlow(search: HomeSearch) {
 
   const startUrlInput = useEffectEvent((input: string) => {
     setValue(input);
+    // Bookmarks cost credits per item, so the user picks a limit and starts them manually.
+    if (detectUrlType(input) === "Bookmarks") {
+      setJobIdInUrl(null, { clearInput: true });
+      return;
+    }
     runExport(input, { clearInputQueryParam: true });
   });
 
@@ -559,6 +572,8 @@ export function useExportFlow(search: HomeSearch) {
     loadingMore: jobTweetsQuery.isFetchingNextPage,
     markdownCopied,
     needsXLink,
+    bookmarkLimit,
+    setBookmarkLimit,
     setValue,
     showExportActions,
     showCopyAction,

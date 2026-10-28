@@ -1,6 +1,10 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { fetchJobs, fetchTweets } from "../db/schema.ts";
-import { calculateTweetListCredits, tweetsPerCredit } from "../../../core/src/credits.ts";
+import {
+  affordableItems,
+  calculateTweetListCredits,
+  creditRate,
+} from "../../../core/src/credits.ts";
 import { db } from "./db.ts";
 import { assertBillingEnabled, lockCreditBalance, recordCreditChange } from "./credit-ledger.ts";
 import type { XPost } from "./x-api.ts";
@@ -64,12 +68,13 @@ export async function settleFetchPage(input: {
       seen.add(tweet.id);
       return true;
     });
-    const perCredit = tweetsPerCredit(job.requestType);
-    const capacity = Math.max(0, (job.chargedCredits + balance) * perCredit - stored);
-    const affordable = unique.slice(0, capacity);
-    const required = calculateTweetListCredits(stored + affordable.length, perCredit);
+    const rate = creditRate(job.requestType);
+    const capacity = Math.max(0, affordableItems(job.chargedCredits + balance, rate) - stored);
+    const wanted = job.itemLimit === null ? unique : unique.slice(0, job.itemLimit - stored);
+    const affordable = wanted.slice(0, capacity);
+    const required = calculateTweetListCredits(stored + affordable.length, rate);
     const insufficient =
-      affordable.length < unique.length || required > job.chargedCredits + balance;
+      affordable.length < wanted.length || required > job.chargedCredits + balance;
     const delta =
       required > job.chargedCredits + balance ? 0 : Math.max(0, required - job.chargedCredits);
     if (affordable.length) {
@@ -92,7 +97,9 @@ export async function settleFetchPage(input: {
         type: "usage",
         report: true,
       });
-    const completed = !input.hasNextPage || !input.nextCursor || input.rawCount === 0;
+    const limitReached = job.itemLimit !== null && stored + affordable.length >= job.itemLimit;
+    const completed =
+      !input.hasNextPage || !input.nextCursor || input.rawCount === 0 || limitReached;
     const [settled] = await tx
       .update(fetchJobs)
       .set({

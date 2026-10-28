@@ -43,7 +43,7 @@ Examples:
   xport export --format json --stdout "@frixaco"
   xport posts --format markdown --out . "@frixaco"
   xport replies --format json --stdout "@frixaco"
-  xport bookmarks --format markdown --out .
+  xport bookmarks --limit 100 --format markdown --out .
   xport stop 5865e60e-ef8e-40e4-96b4-cbdff6cff927
 `);
 }

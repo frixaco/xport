@@ -1,6 +1,6 @@
 # Xport
 
-Xport exports X posts, threads, user timelines, and articles — as Markdown or JSON — from a web app, a direct link, or a CLI.
+Xport exports X posts, threads, user timelines, articles, and your own bookmarks — as Markdown or JSON — from a web app, a direct link, or a CLI.
 
 - **Live app:** [xport.frixaco.com](https://xport.frixaco.com)
 - **CLI:** [`@frixaco/xport` on npm](https://www.npmjs.com/package/@frixaco/xport)
@@ -18,6 +18,7 @@ Xport is built around **resumable export jobs**. A browser creates a PostgreSQL-
 - Export threads from a tweet URL or ID.
 - Export user posts and replies from `@`/username or profile URL.
 - Export X articles from article tweet URLs.
+- Export your bookmarks from `x.com/i/bookmarks` after you connect your X account. See [Bookmarks](#bookmarks).
 - Export from the terminal with the [`xport` CLI](https://www.npmjs.com/package/@frixaco/xport).
 - Preview fetched content and media before export.
 - Download Markdown and JSON where supported.
@@ -61,8 +62,22 @@ Routes:
 | Thread        | Markdown, JSON | `<username>-thread.<ext>`        |
 | User timeline | Markdown, JSON | `<username>-user-posts.<ext>`    |
 | User replies  | Markdown, JSON | `<username>-replies.<ext>`       |
+| Bookmarks     | Markdown, JSON | `<username>-bookmarks.<ext>`     |
 | Partial       | Markdown, JSON | Adds `-partial` before extension |
 | Article       | Markdown       | `<sanitized-article-title>.md`   |
+
+## Bookmarks
+
+Bookmarks are private, so Xport reads them with the official X API on behalf of your linked X account:
+
+1. Sign in to Xport.
+2. Paste `https://x.com/i/bookmarks` (or run `xport bookmarks`) and choose **Connect X account**. You can also connect from the account menu.
+3. Approve read-only access (`bookmark.read`, `tweet.read`, `users.read`, `offline.access`) on X. Xport returns with the bookmarks input filled in.
+4. Choose how many bookmarks to export (25, 100, 400, or 800; `--limit` in the CLI) and start the export. Nothing is fetched or charged before you start.
+
+**Cost:** bookmarks are sold at X API cost, with no margin. X charges $0.005 for each bookmark it returns, so 10 bookmarks cost 7 credits (100 bookmarks = 70 credits, about $0.56). Other exports cost 1 credit per 20 posts. Xport asks X only for the bookmarks your credits and limit cover, so it never fetches bookmarks it cannot charge for.
+
+**Limits:** X returns only your 800 most recent bookmarks. Each Xport user can link one X account; **Disconnect X account** in the account menu removes the link.
 
 ## Local Development
 
@@ -148,7 +163,7 @@ xport login
 xport export --format markdown --out . "https://x.com/burakeregar/status/2020852442230120752"
 xport posts --format markdown --out . "@frixaco"
 xport replies --format markdown --out . "@frixaco"
-xport bookmarks --format markdown --out .
+xport bookmarks --limit 100 --format markdown --out .
 xport stop <jobId>
 ```
 

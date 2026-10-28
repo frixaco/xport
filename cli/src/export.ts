@@ -30,6 +30,7 @@ const EXPORT_FETCH_PAGE_SIZE = 100;
 interface ExportOptions {
   format: ResultExportFormat;
   input: string;
+  limit: number | undefined;
   out: string | null;
   quiet: boolean;
   stdout: boolean;
@@ -54,7 +55,11 @@ Options:
   --format <markdown|json>  Export format (default: markdown)
   --out <path>              Write to a file or existing directory (default: current directory)
   --stdout                  Write export content to stdout
-  --quiet                   Hide progress logs
+  --quiet                   Hide progress logs${
+    command === "bookmarks"
+      ? "\n  --limit <1-800>           Most bookmarks to export (default: all, up to 800).\n                            10 bookmarks cost 7 credits (X API cost)."
+      : ""
+  }
   -h, --help                Show help
 
 Examples:
@@ -62,7 +67,7 @@ Examples:
     command === "export"
       ? 'xport export --format markdown --out . "https://x.com/burakeregar/status/2020852442230120752"\n  xport export --format json --stdout "@frixaco"'
       : command === "bookmarks"
-        ? "xport bookmarks --format markdown --out ."
+        ? "xport bookmarks --limit 100 --format markdown --out ."
         : `xport ${command} --format markdown --out . "@frixaco"`
   }
 `);
@@ -104,6 +109,7 @@ function parseExportArgs(args: string[], command = "export"): ExportOptions | "h
   let out: string | null = ".";
   let quiet = false;
   let stdout = false;
+  let limit: number | undefined;
   let input: string | null = null;
 
   for (let index = 0; index < args.length; index++) {
@@ -148,6 +154,15 @@ function parseExportArgs(args: string[], command = "export"): ExportOptions | "h
       index = result.nextIndex;
       continue;
     }
+    if (command === "bookmarks" && (arg === "--limit" || arg.startsWith("--limit="))) {
+      const result = readOptionValue(args, index, "--limit");
+      limit = Number(result.value);
+      if (!Number.isInteger(limit) || limit < 1 || limit > 800) {
+        throw new CliError("Invalid --limit. Use a whole number from 1 to 800.");
+      }
+      index = result.nextIndex;
+      continue;
+    }
     if (arg === "--out" || arg.startsWith("--out=")) {
       const result = readOptionValue(args, index, "--out");
       out = result.value;
@@ -160,7 +175,7 @@ function parseExportArgs(args: string[], command = "export"): ExportOptions | "h
   }
 
   if (!input) throw new CliError(`Missing input. Use \`xport ${command} [options] <input>\`.`);
-  return { format, input, out, quiet, stdout };
+  return { format, input, limit, out, quiet, stdout };
 }
 
 function statusSummary(status: FetchJobStatusResponse): string {
@@ -181,11 +196,12 @@ async function createFetchJob(
   token: string,
   input: string,
   mode?: AccountExportMode,
+  limit?: number,
 ): Promise<{ jobId: string }> {
   return requestJson<{ jobId: string }>(ctx, "/api/fetch-jobs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input, mode }),
+    body: JSON.stringify({ input, mode, limit }),
     token,
   });
 }
@@ -313,10 +329,10 @@ async function exportFetchJob(
   ctx: CommandContext,
   token: string,
   input: string,
-  options: Pick<ExportOptions, "quiet">,
+  options: Pick<ExportOptions, "quiet" | "limit">,
   mode?: AccountExportMode,
 ): Promise<{ result: ResultState; isPartial: boolean }> {
-  const created = await createFetchJob(ctx, token, input, mode);
+  const created = await createFetchJob(ctx, token, input, mode, options.limit);
   process.stderr.write(`Job ID: ${created.jobId}\n`);
 
   const status = await pollJob(ctx, token, created.jobId, options);
@@ -377,8 +393,9 @@ async function runExportCommand(
   ctx: CommandContext,
   args: string[],
   accountMode?: Extract<AccountExportMode, "posts" | "replies">,
+  commandName?: string,
 ): Promise<void> {
-  const command = accountMode ?? "export";
+  const command = commandName ?? accountMode ?? "export";
   const options = parseExportArgs(args, command);
   if (options === "help") {
     printExportHelp(command);
@@ -423,7 +440,7 @@ export async function commandBookmarks(ctx: CommandContext, args: string[]): Pro
     printExportHelp("bookmarks");
     return;
   }
-  return runExportCommand(ctx, [...args, BOOKMARKS_URL]);
+  return runExportCommand(ctx, [...args, BOOKMARKS_URL], undefined, "bookmarks");
 }
 
 export async function commandStop(ctx: CommandContext, args: string[]): Promise<void> {

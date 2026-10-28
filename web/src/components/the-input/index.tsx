@@ -25,7 +25,8 @@ import { examples } from "./input";
 import { estimateCostCredits, formatCount, formatCreditLabel } from "./display";
 import { ResultDisplay, ResultDisplayLoading } from "./result-display";
 import type { FetchJobStatusResponse } from "./types";
-import { useExportFlow } from "./use-export-flow";
+import { BOOKMARK_LIMITS, useExportFlow } from "./use-export-flow";
+import { BOOKMARK_RATE, calculateTweetListCredits } from "@/lib/credits";
 import type { ResultExportFormat } from "./copy-formats";
 
 function jobStatusLabel({
@@ -123,6 +124,45 @@ function ExportActions({
   );
 }
 
+function BookmarkLimitPicker({
+  limit,
+  onChange,
+}: {
+  limit: number;
+  onChange: (limit: number) => void;
+}) {
+  return (
+    <div className="flex w-full flex-wrap items-center gap-x-2 gap-y-1.5 rounded-md border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+      <span>Export up to</span>
+      <div className="flex gap-1" role="group" aria-label="Bookmarks limit">
+        {BOOKMARK_LIMITS.map((option) => (
+          <Button
+            key={option}
+            type="button"
+            size="sm"
+            variant={option === limit ? "secondary" : "outline"}
+            className="h-7 px-2 tabular-nums"
+            aria-pressed={option === limit}
+            onClick={() => onChange(option)}
+          >
+            {option}
+          </Button>
+        ))}
+      </div>
+      <span>
+        bookmarks · up to{" "}
+        <span className="font-medium text-foreground tabular-nums">
+          {formatCreditLabel(calculateTweetListCredits(limit, BOOKMARK_RATE))}
+        </span>
+      </span>
+      <span className="w-full">
+        Sold at X API cost: {BOOKMARK_RATE.items} bookmarks = {BOOKMARK_RATE.credits} credits. You
+        pay only for fetched bookmarks. Press the arrow to start.
+      </span>
+    </div>
+  );
+}
+
 function ConnectXButton() {
   return (
     <Button type="button" size="sm" className="h-8 px-2.5" onClick={() => void connectXAccount()}>
@@ -152,6 +192,8 @@ export function TheInput({ search }: { search: HomeSearch }) {
     loadingMore,
     markdownCopied,
     needsXLink,
+    bookmarkLimit,
+    setBookmarkLimit,
     setValue,
     showExportActions,
     showCopyAction,
@@ -202,7 +244,10 @@ export function TheInput({ search }: { search: HomeSearch }) {
               replies,
             </span>{" "}
             <span className="inline-block text-[1.08em] font-extrabold text-emerald-600 dark:text-emerald-400">
-              articles
+              articles,
+            </span>{" "}
+            <span className="inline-block text-[1.08em] font-extrabold text-amber-600 dark:text-amber-400">
+              bookmarks
             </span>{" "}
             in <span className="whitespace-nowrap">Markdown/JSON</span>
           </h1>
@@ -227,6 +272,11 @@ export function TheInput({ search }: { search: HomeSearch }) {
               <ArrowUpRight className="size-3.5" aria-hidden="true" />
             </a>
           </aside>
+          <p className="mx-auto mt-3 max-w-xl text-xs text-balance text-muted-foreground">
+            Bookmarks: paste <span className="font-mono text-foreground/80">x.com/i/bookmarks</span>{" "}
+            and connect your X account. Sold at X API cost: 10 bookmarks = 7 credits (100 bookmarks
+            ≈ $0.56). X returns only your 800 most recent bookmarks.
+          </p>
         </div>
       )}
 
@@ -297,6 +347,18 @@ export function TheInput({ search }: { search: HomeSearch }) {
           <SubmitIcon className={cn("size-4", (isLoading || isStopRequested) && "animate-spin")} />
         </Button>
       </form>
+
+      {detected === "Bookmarks" && !activeJob && !isLoading && (
+        <div
+          className={cn(
+            "w-full",
+            showResultLayout && "md:w-[120%] md:max-w-[calc(100vw-2rem)] md:self-center",
+            isActive && "-translate-y-10",
+          )}
+        >
+          <BookmarkLimitPicker limit={bookmarkLimit} onChange={setBookmarkLimit} />
+        </div>
+      )}
 
       {showJobStatusRow && (
         <div
