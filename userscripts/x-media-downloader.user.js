@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X Media Downloader (original quality)
 // @namespace    frixaco.x-media-downloader
-// @version      1.0.3
+// @version      1.0.4
 // @description  Per-item download buttons for photos, videos and GIFs on X (ex-Twitter): timelines, threads, quotes, retweets, carousels, sensitive media, media tab and photo viewer. Original quality.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
@@ -14,6 +14,8 @@
 // @connect      pbs.twimg.com
 // @connect      video.twimg.com
 // @connect      cdn.syndication.twimg.com
+// @updateURL    https://raw.githubusercontent.com/frixaco/xport/main/userscripts/x-media-downloader.user.js
+// @downloadURL  https://raw.githubusercontent.com/frixaco/xport/main/userscripts/x-media-downloader.user.js
 // ==/UserScript==
 
 (function () {
