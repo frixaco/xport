@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X Media Downloader (original quality)
 // @namespace    frixaco.x-media-downloader
-// @version      1.0.2
+// @version      1.0.3
 // @description  Per-item download buttons for photos, videos and GIFs on X (ex-Twitter): timelines, threads, quotes, retweets, carousels, sensitive media, media tab and photo viewer. Original quality.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
@@ -335,7 +335,8 @@
     b.innerHTML = ICON + (label ? `<span>${label}</span>` : "");
     b.title = "Download original";
     const stop = (e) => {
-      e.preventDefault();
+      // Cancelling touchstart prevents Safari from generating the download click.
+      if (e.type === "click") e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
     };
