@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X Media Downloader (original quality)
 // @namespace    frixaco.x-media-downloader
-// @version      1.0.4
+// @version      1.0.5
 // @description  Per-item download buttons for photos, videos and GIFs on X (ex-Twitter): timelines, threads, quotes, retweets, carousels, sensitive media, media tab and photo viewer. Original quality.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
@@ -69,14 +69,28 @@
     return `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}`;
   }
 
-  function addTweet(id, user, created, mediaList, quotedId) {
+  // info = { user, name, created, text }
+  function addTweet(id, info, mediaList, quotedId) {
     if (!id) return null;
+    const { user, name, created, text } = info;
     let t = tweets.get(id);
     if (!t) {
-      t = { id, user: user || "unknown", date: fmtDate(created), media: [], quotedIds: new Set() };
+      t = {
+        id,
+        user: user || "unknown",
+        name: name || "",
+        text: text || "",
+        created: created || "",
+        date: fmtDate(created),
+        media: [],
+        quotedIds: new Set(),
+      };
       tweets.set(id, t);
     }
     if (user && t.user === "unknown") t.user = user;
+    if (name && !t.name) t.name = name;
+    if (text && !t.text) t.text = text;
+    if (created && !t.created) t.created = created;
     if (!t.date && created) t.date = fmtDate(created);
     if (quotedId) t.quotedIds.add(quotedId);
     for (const m of mediaList || []) {
@@ -90,8 +104,27 @@
 
   function userOf(result) {
     const u = result && result.core && result.core.user_results && result.core.user_results.result;
-    if (!u) return null;
-    return (u.core && u.core.screen_name) || (u.legacy && u.legacy.screen_name) || null;
+    if (!u) return {};
+    return {
+      user: (u.core && u.core.screen_name) || (u.legacy && u.legacy.screen_name) || null,
+      name: (u.core && u.core.name) || (u.legacy && u.legacy.name) || null,
+    };
+  }
+
+  function tweetText(o) {
+    const L = o.legacy || o;
+    const note =
+      o.note_tweet &&
+      o.note_tweet.note_tweet_results &&
+      o.note_tweet.note_tweet_results.result &&
+      o.note_tweet.note_tweet_results.result.text;
+    // Drop the trailing t.co link X appends for attached media; API text is HTML-escaped.
+    return String(note || L.full_text || L.text || "")
+      .replace(/\s*https:\/\/t\.co\/\w+\s*$/, "")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&")
+      .trim();
   }
 
   function cardMedia(card) {
@@ -128,7 +161,12 @@
       ).concat(cardMedia(o.card));
       const q = o.quoted_status_result && o.quoted_status_result.result;
       const qid = q && (q.rest_id || (q.tweet && q.tweet.rest_id));
-      addTweet(o.rest_id, userOf(o), L.created_at, media, qid || L.quoted_status_id_str);
+      addTweet(
+        o.rest_id,
+        { ...userOf(o), created: L.created_at, text: tweetText(o) },
+        media,
+        qid || L.quoted_status_id_str,
+      );
     }
     // Syndication / v1.1 tweet
     else if (
@@ -144,8 +182,7 @@
         [];
       addTweet(
         o.id_str,
-        o.user.screen_name,
-        o.created_at,
+        { user: o.user.screen_name, name: o.user.name, created: o.created_at, text: tweetText(o) },
         media,
         o.quoted_tweet && o.quoted_tweet.id_str,
       );
@@ -269,45 +306,249 @@
     return `${parts.join("-")}-${kind}.${m.ext}`;
   }
 
+  // ---------------------------------------------------------------------------
+  // Embedded metadata (author, link, text) so Photos/Finder show where media came from.
+  // Photos: XMP in JPEG/PNG. Videos: QuickTime mdta keys in moov/meta.
+  // ---------------------------------------------------------------------------
+  function mediaInfo(tweet) {
+    const url = `https://x.com/${tweet.user}/status/${tweet.id}`;
+    const author = tweet.name ? `${tweet.name} (@${tweet.user})` : `@${tweet.user}`;
+    const d = tweet.created ? new Date(tweet.created) : null;
+    const date = d && !isNaN(d) ? d.toISOString().replace(/\.\d{3}Z$/, "Z") : "";
+    const description = [tweet.text, `${author}\n${url}`].filter(Boolean).join("\n\n");
+    return { url, author, date, title: `${author} on X`, description };
+  }
+
+  const utf8 = (s) => new TextEncoder().encode(s);
+  const u32 = (n) => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+  const ascii = (s) => Array.from(s, (c) => c.charCodeAt(0));
+  const concat = (parts) => {
+    const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+    let o = 0;
+    for (const p of parts) {
+      out.set(p, o);
+      o += p.length;
+    }
+    return out;
+  };
+  const xml = (s) =>
+    String(s).replace(
+      /[&<>"]/g,
+      (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c],
+    );
+
+  function xmpPacket(info) {
+    const alt = (v) => `<rdf:Alt><rdf:li xml:lang="x-default">${xml(v)}</rdf:li></rdf:Alt>`;
+    return (
+      '<?xpacket begin="\uFEFF" id="W5M0MpCehiHzreSzNTczkc9d"?>' +
+      '<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">' +
+      '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/"' +
+      ' xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/" xmlns:xmp="http://ns.adobe.com/xap/1.0/">' +
+      `<dc:title>${alt(info.title)}</dc:title>` +
+      `<dc:description>${alt(info.description)}</dc:description>` +
+      `<dc:creator><rdf:Seq><rdf:li>${xml(info.author)}</rdf:li></rdf:Seq></dc:creator>` +
+      `<dc:source>${xml(info.url)}</dc:source>` +
+      `<photoshop:Credit>${xml(info.author)}</photoshop:Credit>` +
+      `<photoshop:Source>${xml(info.url)}</photoshop:Source>` +
+      (info.date ? `<photoshop:DateCreated>${info.date}</photoshop:DateCreated>` : "") +
+      "</rdf:Description></rdf:RDF></x:xmpmeta>" +
+      '<?xpacket end="w"?>'
+    );
+  }
+
+  function tagJpeg(b, info) {
+    if (b[0] !== 0xff || b[1] !== 0xd8) return null;
+    const payload = concat([utf8("http://ns.adobe.com/xap/1.0/\0"), utf8(xmpPacket(info))]);
+    if (payload.length + 2 > 0xffff) return null;
+    // Insert after SOI and a leading JFIF APP0, where readers expect APP1.
+    let at = 2;
+    if (b[2] === 0xff && b[3] === 0xe0) at = 4 + ((b[4] << 8) | b[5]);
+    const len = payload.length + 2;
+    const seg = concat([new Uint8Array([0xff, 0xe1, len >> 8, len & 255]), payload]);
+    return concat([b.subarray(0, at), seg, b.subarray(at)]);
+  }
+
+  let crcTable;
+  function crc32(bytes) {
+    if (!crcTable) {
+      crcTable = new Uint32Array(256);
+      for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+        crcTable[n] = c >>> 0;
+      }
+    }
+    let c = 0xffffffff;
+    for (const x of bytes) c = crcTable[(c ^ x) & 255] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  }
+
+  function tagPng(b, info) {
+    const sig = [137, 80, 78, 71, 13, 10, 26, 10];
+    if (!sig.every((x, i) => b[i] === x)) return null;
+    // iTXt: keyword \0 compression(0) method(0) lang \0 translated \0 text
+    const body = concat([
+      new Uint8Array(ascii("iTXt")),
+      utf8("XML:com.adobe.xmp\0\0\0\0\0"),
+      utf8(xmpPacket(info)),
+    ]);
+    const chunk = concat([
+      new Uint8Array(u32(body.length - 4)),
+      body,
+      new Uint8Array(u32(crc32(body))),
+    ]);
+    const at = 8 + 12 + ((b[8] << 24) | (b[9] << 16) | (b[10] << 8) | b[11]); // after IHDR
+    return concat([b.subarray(0, at), chunk, b.subarray(at)]);
+  }
+
+  const box = (type, ...parts) => {
+    const body = concat(parts);
+    return concat([new Uint8Array([...u32(body.length + 8), ...ascii(type)]), body]);
+  };
+
+  function quickTimeMeta(info) {
+    const items = [
+      ["com.apple.quicktime.title", info.title],
+      ["com.apple.quicktime.description", info.description],
+      ["com.apple.quicktime.author", info.author],
+      ["com.apple.quicktime.artist", info.author],
+      ["com.apple.quicktime.comment", info.url],
+      ["com.apple.quicktime.creationdate", info.date],
+    ].filter(([, v]) => v);
+    const zero = (n) => new Uint8Array(n);
+    const hdlr = box("hdlr", zero(8), new Uint8Array(ascii("mdta")), zero(13));
+    const keys = box(
+      "keys",
+      zero(4),
+      new Uint8Array(u32(items.length)),
+      ...items.map(([k]) => box("mdta", utf8(k))),
+    );
+    const ilst = concat([
+      new Uint8Array([...u32(0), ...ascii("ilst")]),
+      ...items.map(([, v], i) => {
+        const data = box("data", new Uint8Array(u32(1)), zero(4), utf8(v)); // type 1 = UTF-8
+        return concat([new Uint8Array([...u32(data.length + 8), ...u32(i + 1)]), data]);
+      }),
+    ]);
+    new DataView(ilst.buffer).setUint32(0, ilst.length);
+    return box("meta", hdlr, keys, ilst);
+  }
+
+  function tagMp4(b, info) {
+    const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+    const children = (start, end) => {
+      const out = [];
+      for (let o = start; o + 8 <= end; ) {
+        const size = dv.getUint32(o);
+        if (size < 8 || o + size > end) return null; // 64-bit or broken sizes: leave file alone
+        out.push({ type: String.fromCharCode(...b.subarray(o + 4, o + 8)), start: o, size });
+        o += size;
+      }
+      return out;
+    };
+    const top = children(0, b.length);
+    const moov = top && top.find((x) => x.type === "moov");
+    if (!moov) return null;
+    const inMoov = children(moov.start + 8, moov.start + moov.size);
+    if (!inMoov || inMoov.some((x) => x.type === "meta")) return null;
+    const meta = quickTimeMeta(info);
+    const out = concat([
+      b.subarray(0, moov.start + moov.size),
+      meta,
+      b.subarray(moov.start + moov.size),
+    ]);
+    const odv = new DataView(out.buffer);
+    odv.setUint32(moov.start, moov.size + meta.length);
+    // Media data after moov moves by meta.length; shift chunk offsets that point past moov.
+    const moovEnd = moov.start + moov.size;
+    const walkStbl = (list, path) => {
+      for (const x of list) {
+        if (path.length) {
+          if (x.type === path[0])
+            walkStbl(children(x.start + 8, x.start + x.size) || [], path.slice(1));
+          continue;
+        }
+        if (x.type !== "stco" && x.type !== "co64") continue;
+        const n = dv.getUint32(x.start + 12);
+        for (let i = 0; i < n; i++) {
+          if (x.type === "stco") {
+            const p = x.start + 16 + i * 4;
+            const v = dv.getUint32(p);
+            if (v >= moovEnd) odv.setUint32(p, v + meta.length);
+          } else {
+            const p = x.start + 16 + i * 8;
+            const v = dv.getBigUint64(p);
+            if (v >= BigInt(moovEnd)) odv.setBigUint64(p, v + BigInt(meta.length));
+          }
+        }
+      }
+    };
+    walkStbl(inMoov, ["trak", "mdia", "minf", "stbl"]);
+    return out;
+  }
+
+  function tagMedia(bytes, ext, info) {
+    try {
+      const b = new Uint8Array(bytes);
+      const out =
+        ext === "mp4"
+          ? tagMp4(b, info)
+          : ext === "jpg"
+            ? tagJpeg(b, info)
+            : ext === "png"
+              ? tagPng(b, info)
+              : null;
+      return out || b;
+    } catch (e) {
+      console.warn(TAG, "metadata embed failed", e);
+      return new Uint8Array(bytes);
+    }
+  }
+
+  const MIME = { jpg: "image/jpeg", png: "image/png", webp: "image/webp", mp4: "video/mp4" };
+
   function download(entry) {
     const m = entry.tweet.media[entry.index];
     const name = fileName(entry);
     return new Promise((resolve, reject) => {
       if (!m.url) return reject(new Error("no url"));
       if (m.hlsOnly) return reject(new Error("HLS-only video, no MP4 variant"));
-      const viaBlob = () =>
-        GM_xmlhttpRequest({
-          method: "GET",
-          url: m.url,
-          responseType: "blob",
-          onload: (r) => {
-            if (r.status !== 200) return reject(new Error("HTTP " + r.status));
-            const a = document.createElement("a");
-            const href = URL.createObjectURL(r.response);
-            a.href = href;
-            a.download = name;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            setTimeout(() => URL.revokeObjectURL(href), 60000);
-            resolve(name);
-          },
-          onerror: () => reject(new Error("network error")),
-        });
-      try {
-        GM_download({
-          url: m.url,
-          name,
-          saveAs: false,
-          onload: () => resolve(name),
-          onerror: (e) => {
-            console.warn(TAG, "GM_download failed, using blob fallback", e);
-            viaBlob();
-          },
-        });
-      } catch {
-        viaBlob();
-      }
+      const viaAnchor = (blob) => {
+        const a = document.createElement("a");
+        const href = URL.createObjectURL(blob);
+        a.href = href;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(href), 60000);
+        resolve(name);
+      };
+      GM_xmlhttpRequest({
+        method: "GET",
+        url: m.url,
+        responseType: "arraybuffer",
+        onload: (r) => {
+          if (r.status !== 200) return reject(new Error("HTTP " + r.status));
+          const bytes = tagMedia(r.response, m.ext, mediaInfo(entry.tweet));
+          const blob = new Blob([bytes], { type: MIME[m.ext] || "application/octet-stream" });
+          try {
+            GM_download({
+              url: blob,
+              name,
+              saveAs: false,
+              onload: () => resolve(name),
+              onerror: (e) => {
+                console.warn(TAG, "GM_download failed, using anchor fallback", e);
+                viaAnchor(blob);
+              },
+            });
+          } catch {
+            viaAnchor(blob);
+          }
+        },
+        onerror: () => reject(new Error("network error")),
+      });
     });
   }
 
