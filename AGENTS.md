@@ -152,6 +152,14 @@ FROM xport_fetch_jobs
 ORDER BY created_at DESC LIMIT 10;
 ```
 
+## Userscript
+
+- `userscripts/x-media-downloader.user.js` is the source of truth.
+- Keep exactly one public copy in gist `16f3c4ee686cf144488efb961e1b1d9e`. It must always match the repo file. Do not create other gists.
+- On every change: bump `@version`, commit and push the repo file, then run `gh gist edit 16f3c4ee686cf144488efb961e1b1d9e -f x-media-downloader.user.js userscripts/x-media-downloader.user.js`.
+- Check that the gist and repo copies are identical:
+  `gh gist view 16f3c4ee686cf144488efb961e1b1d9e --raw -f x-media-downloader.user.js | diff - userscripts/x-media-downloader.user.js`
+
 ## CLI
 
 - CLI scripts live in `cli/`.
