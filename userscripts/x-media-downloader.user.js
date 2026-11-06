@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X Media Downloader (original quality)
 // @namespace    frixaco.x-media-downloader
-// @version      1.0.6
+// @version      1.0.7
 // @description  Per-item download buttons for photos, videos and GIFs on X (ex-Twitter): timelines, threads, quotes, retweets, carousels, sensitive media, media tab and photo viewer. Original quality.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
@@ -634,7 +634,8 @@
         b.dataset.state = "busy";
         try {
           const entry = await resolveEntry();
-          if (!entry) throw new Error("media not found");
+          // Indexed tweet count tells whether the API capture works at all on this device.
+          if (!entry) throw new Error(`media not found (indexed posts: ${tweets.size})`);
           b.title = fileName(entry);
           await download(entry);
           b.dataset.state = "ok";
@@ -713,9 +714,54 @@
       await fetchSyndication(id);
       if (main && main !== id) await fetchSyndication(main);
       for (const k of keysIn(el)) if (byKey.has(k)) return byKey.get(k);
-      return positionalEntry(el, id);
+      const pos = positionalEntry(el, id);
+      if (pos) return pos;
     }
-    return null;
+    return photoFromDom(el);
+  }
+
+  // Last resort for photos when no API data was captured (e.g. iOS, or posts the
+  // syndication API tombstones): the <img> holds the media ID and the link holds
+  // the author and post ID, which is all an original-quality URL needs.
+  function photoFromDom(el) {
+    const img = [...el.querySelectorAll("img")].find((i) =>
+      /\/\/pbs\.twimg\.com\/media\//.test(i.src),
+    );
+    if (!img) return null;
+    const u = new URL(img.src);
+    const key = mediaKeyFromUrl(u.pathname);
+    if (!key) return null;
+    const fmt = u.searchParams.get("format") || (u.pathname.match(/\.(\w+)$/) || [])[1] || "jpg";
+    const ext = fmt === "jpeg" ? "jpg" : fmt;
+    const link = el.closest("a[href*='/status/']") || el.querySelector("a[href*='/status/']");
+    const href = link ? link.getAttribute("href") : location.pathname;
+    const m = href.match(/^\/([^/]+)\/status\/(\d+)(?:\/photo\/(\d+))?/);
+    if (!m) return null;
+    const scope = el.closest("div[role=link]") || el.closest("article");
+    const count = scope
+      ? Math.max(1, scope.querySelectorAll("[data-testid=tweetPhoto]").length)
+      : 1;
+    const index = Math.min(m[3] ? Number(m[3]) - 1 : 0, count - 1);
+    const media = Array.from({ length: count }, () => ({ type: "photo", ext }));
+    media[index] = {
+      key,
+      type: "photo",
+      ext,
+      url: `https://pbs.twimg.com/media/${key}?format=${ext}&name=orig`,
+    };
+    return {
+      tweet: {
+        id: m[2],
+        user: m[1],
+        name: "",
+        text: "",
+        created: "",
+        date: "",
+        media,
+        quotedIds: new Set(),
+      },
+      index,
+    };
   }
 
   // Media tiles: photos/videos/GIFs, and click-to-play video previews.
