@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X Media Downloader (original quality)
 // @namespace    frixaco.x-media-downloader
-// @version      1.0.5
+// @version      1.0.6
 // @description  Per-item download buttons for photos, videos and GIFs on X (ex-Twitter): timelines, threads, quotes, retweets, carousels, sensitive media, media tab and photo viewer. Original quality.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
@@ -524,31 +524,62 @@
         setTimeout(() => URL.revokeObjectURL(href), 60000);
         resolve(name);
       };
-      GM_xmlhttpRequest({
-        method: "GET",
-        url: m.url,
-        responseType: "arraybuffer",
-        onload: (r) => {
-          if (r.status !== 200) return reject(new Error("HTTP " + r.status));
-          const bytes = tagMedia(r.response, m.ext, mediaInfo(entry.tweet));
-          const blob = new Blob([bytes], { type: MIME[m.ext] || "application/octet-stream" });
-          try {
-            GM_download({
-              url: blob,
-              name,
-              saveAs: false,
-              onload: () => resolve(name),
-              onerror: (e) => {
-                console.warn(TAG, "GM_download failed, using anchor fallback", e);
-                viaAnchor(blob);
-              },
-            });
-          } catch {
-            viaAnchor(blob);
-          }
-        },
-        onerror: () => reject(new Error("network error")),
-      });
+      // Untagged direct download (the 1.0.4 path); used when the tagged fetch fails.
+      const plain = (why) => {
+        console.warn(TAG, "tagged download failed, saving without metadata:", why);
+        try {
+          GM_download({
+            url: m.url,
+            name,
+            saveAs: false,
+            onload: () => resolve(name),
+            onerror: (e) =>
+              reject(
+                new Error(`${why}; GM_download: ${(e && (e.error || e.details)) || "failed"}`),
+              ),
+          });
+        } catch (e) {
+          reject(new Error(`${why}; GM_download: ${e.message}`));
+        }
+      };
+      try {
+        GM_xmlhttpRequest({
+          method: "GET",
+          url: m.url,
+          responseType: "arraybuffer",
+          onload: (r) => {
+            if (r.status !== 200) return plain("HTTP " + r.status);
+            if (!r.response || !r.response.byteLength) return plain("empty response");
+            try {
+              saveTagged(r.response);
+            } catch (e) {
+              plain("tagging: " + e.message);
+            }
+          },
+          onerror: (e) => plain("network error " + ((e && e.error) || "")),
+          ontimeout: () => plain("timeout"),
+        });
+      } catch (e) {
+        plain("GM_xmlhttpRequest: " + e.message);
+      }
+      function saveTagged(buf) {
+        const bytes = tagMedia(buf, m.ext, mediaInfo(entry.tweet));
+        const blob = new Blob([bytes], { type: MIME[m.ext] || "application/octet-stream" });
+        try {
+          GM_download({
+            url: blob,
+            name,
+            saveAs: false,
+            onload: () => resolve(name),
+            onerror: (e) => {
+              console.warn(TAG, "GM_download failed, using anchor fallback", e);
+              viaAnchor(blob);
+            },
+          });
+        } catch {
+          viaAnchor(blob);
+        }
+      }
     });
   }
 
@@ -558,7 +589,8 @@
   const css = `
   .xmd-btn{position:absolute;top:6px;right:6px;z-index:20;width:30px;height:30px;border-radius:999px;border:1px solid rgba(255,255,255,.35);
     background:rgba(15,20,25,.75);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;
-    opacity:.85;transition:opacity .15s,background .15s;font:600 11px/1 system-ui,sans-serif;backdrop-filter:blur(4px)}
+    opacity:.85;transition:opacity .15s,background .15s;font:600 11px/1 system-ui,sans-serif;backdrop-filter:blur(4px);
+    user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
   .xmd-btn:hover{opacity:1;background:rgba(29,155,240,.95)}
   .xmd-btn svg{width:16px;height:16px;fill:currentColor;pointer-events:none}
   .xmd-btn[data-state=busy]{background:rgba(29,155,240,.95)} .xmd-btn[data-state=ok]{background:rgba(0,186,124,.95)}
@@ -591,6 +623,14 @@
       async (e) => {
         stop(e);
         if (b.dataset.state === "busy") return;
+        // Tap a red button to see why it failed (no hover tooltips on touch screens).
+        if (b.dataset.state === "err") {
+          alert(
+            `X Media Downloader v${typeof GM_info !== "undefined" ? GM_info.script.version : "?"}\n${b.title}`,
+          );
+          delete b.dataset.state;
+          return;
+        }
         b.dataset.state = "busy";
         try {
           const entry = await resolveEntry();
