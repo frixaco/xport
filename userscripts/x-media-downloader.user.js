@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X Media Downloader (original quality)
 // @namespace    frixaco.x-media-downloader
-// @version      1.0.7
+// @version      1.0.8
 // @description  Per-item download buttons for photos, videos and GIFs on X (ex-Twitter): timelines, threads, quotes, retweets, carousels, sensitive media, media tab and photo viewer. Original quality.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
@@ -259,9 +259,75 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Direct GraphQL lookup with the user's session. On Safari, x.com's CSP nonce
+  // stops page-context injection, so the hooks above see no traffic.
+  // ---------------------------------------------------------------------------
+  let gqlConf;
+  function gqlConfig() {
+    if (gqlConf) return gqlConf;
+    gqlConf = (async () => {
+      const main = [...document.scripts]
+        .map((s) => s.src)
+        .find((s) => /\/client-web\/main\.[^/]+\.js/.test(s));
+      if (!main) throw new Error("main.js not found");
+      const t = await (await fetch(main)).text();
+      const m = t.match(
+        /queryId:"([^"]+)",operationName:"TweetResultByRestId",operationType:"query",metadata:\{featureSwitches:\[([^\]]*)\],fieldToggles:\[([^\]]*)\]/,
+      );
+      const bearer = t.match(/"(AAAAAAAAAAAAAAAAAAAAA[^"]+)"/);
+      if (!m || !bearer) throw new Error("TweetResultByRestId not found");
+      const flags = (s) =>
+        Object.fromEntries((s.match(/"[^"]+"/g) || []).map((x) => [x.slice(1, -1), true]));
+      return {
+        queryId: m[1],
+        features: flags(m[2]),
+        fieldToggles: flags(m[3]),
+        bearer: decodeURIComponent(bearer[1]),
+      };
+    })();
+    gqlConf.catch(() => (gqlConf = null));
+    return gqlConf;
+  }
+
+  async function fetchGraphql(id) {
+    try {
+      const ct0 = (document.cookie.match(/(?:^|;\s*)ct0=([^;]+)/) || [])[1];
+      if (!ct0) return; // logged out
+      const c = await gqlConfig();
+      const vars = {
+        tweetId: id,
+        withCommunity: false,
+        includePromotedContent: false,
+        withVoice: false,
+      };
+      const q = (o) => encodeURIComponent(JSON.stringify(o));
+      const res = await fetch(
+        `/i/api/graphql/${c.queryId}/TweetResultByRestId?variables=${q(vars)}&features=${q(c.features)}&fieldToggles=${q(c.fieldToggles)}`,
+        {
+          credentials: "include",
+          headers: {
+            authorization: `Bearer ${c.bearer}`,
+            "x-csrf-token": ct0,
+            "x-twitter-active-user": "yes",
+            "x-twitter-auth-type": "OAuth2Session",
+          },
+        },
+      );
+      if (res.ok) walk(await res.json());
+    } catch (e) {
+      console.warn(TAG, "graphql lookup failed", e);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Syndication fallback for tweets we never saw in API traffic
   // ---------------------------------------------------------------------------
   const synPending = new Map();
+  async function lookup(id) {
+    await fetchGraphql(id);
+    const t = tweets.get(id);
+    if (!t || !t.media.length) await fetchSyndication(id);
+  }
   function fetchSyndication(id) {
     if (synPending.has(id)) return synPending.get(id);
     const token = ((Number(id) / 1e15) * Math.PI).toString(36).replace(/(0+|\.)/g, "");
@@ -711,8 +777,8 @@
     if (id) {
       const article = el.closest("article");
       const main = article && mainTweetId(article);
-      await fetchSyndication(id);
-      if (main && main !== id) await fetchSyndication(main);
+      await lookup(id);
+      if (main && main !== id) await lookup(main);
       for (const k of keysIn(el)) if (byKey.has(k)) return byKey.get(k);
       const pos = positionalEntry(el, id);
       if (pos) return pos;
