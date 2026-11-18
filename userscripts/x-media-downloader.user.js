@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X Media Downloader (original quality)
 // @namespace    frixaco.x-media-downloader
-// @version      1.0.9
+// @version      1.1.0
 // @description  Per-item download buttons for photos, videos and GIFs on X (ex-Twitter): timelines, threads, quotes, retweets, carousels, sensitive media, media tab and photo viewer. Original quality.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
@@ -553,9 +553,8 @@
     return out;
   }
 
-  function tagMedia(bytes, ext, info) {
+  function tagMedia(b, ext, info) {
     try {
-      const b = new Uint8Array(bytes);
       const out =
         ext === "mp4"
           ? tagMp4(b, info)
@@ -567,86 +566,136 @@
       return out || b;
     } catch (e) {
       console.warn(TAG, "metadata embed failed", e);
-      return new Uint8Array(bytes);
+      return b;
     }
   }
 
   const MIME = { jpg: "image/jpeg", png: "image/png", webp: "image/webp", mp4: "video/mp4" };
 
-  function download(entry) {
+  // Page fetch: twimg CDNs allow x.com via CORS, so bytes stream natively.
+  // GM_xmlhttpRequest copies them through extension messaging, which is slow
+  // for videos and stalls on iOS Safari.
+  async function fetchBytes(url, onProgress) {
+    const ctl = new AbortController();
+    let idle;
+    const kick = () => {
+      clearTimeout(idle);
+      idle = setTimeout(() => ctl.abort(), 30000);
+    };
+    kick();
+    try {
+      const res = await fetch(url, { credentials: "omit", signal: ctl.signal });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const total = Number(res.headers.get("content-length")) || 0;
+      if (!res.body) return new Uint8Array(await res.arrayBuffer());
+      const reader = res.body.getReader();
+      const chunks = [];
+      let got = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        kick();
+        chunks.push(value);
+        got += value.length;
+        if (total) onProgress(got / total);
+      }
+      return concat(chunks);
+    } catch (e) {
+      throw ctl.signal.aborted ? new Error("timeout (no data for 30 s)") : e;
+    } finally {
+      clearTimeout(idle);
+    }
+  }
+
+  function gmBytes(url) {
+    return new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        method: "GET",
+        url,
+        responseType: "arraybuffer",
+        timeout: 120000,
+        onload: (r) =>
+          r.status === 200 && r.response && r.response.byteLength
+            ? resolve(new Uint8Array(r.response))
+            : reject(new Error("HTTP " + r.status)),
+        onerror: (e) => reject(new Error("network error " + ((e && e.error) || ""))),
+        ontimeout: () => reject(new Error("timeout")),
+        onabort: () => reject(new Error("aborted")),
+      });
+    });
+  }
+
+  const IS_SAFARI = /^((?!chrome|chromium|android|crios|fxios).)*safari/i.test(navigator.userAgent);
+
+  async function download(entry, onProgress) {
     const m = entry.tweet.media[entry.index];
     const name = fileName(entry);
-    return new Promise((resolve, reject) => {
-      if (!m.url) return reject(new Error("no url"));
-      if (m.hlsOnly) return reject(new Error("HLS-only video, no MP4 variant"));
-      const viaAnchor = (blob) => {
-        const a = document.createElement("a");
-        const href = URL.createObjectURL(blob);
-        a.href = href;
-        a.download = name;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(href), 60000);
-        resolve(name);
-      };
-      // Untagged direct download (the 1.0.4 path); used when the tagged fetch fails.
-      const plain = (why) => {
-        console.warn(TAG, "tagged download failed, saving without metadata:", why);
-        try {
+    if (!m.url) throw new Error("no url");
+    if (m.hlsOnly) throw new Error("HLS-only video, no MP4 variant");
+    let bytes;
+    try {
+      bytes = await fetchBytes(m.url, onProgress);
+    } catch (e) {
+      console.warn(TAG, "page fetch failed, using GM_xmlhttpRequest", e);
+      try {
+        bytes = await gmBytes(m.url);
+      } catch (e2) {
+        // Last resort: untagged direct download (the 1.0.4 path).
+        const why = `fetch: ${e.message}; GM_xmlhttpRequest: ${e2.message}`;
+        await new Promise((resolve, reject) =>
           GM_download({
             url: m.url,
             name,
             saveAs: false,
-            onload: () => resolve(name),
-            onerror: (e) =>
+            onload: resolve,
+            onerror: (e3) =>
               reject(
-                new Error(`${why}; GM_download: ${(e && (e.error || e.details)) || "failed"}`),
+                new Error(`${why}; GM_download: ${(e3 && (e3.error || e3.details)) || "failed"}`),
               ),
-          });
-        } catch (e) {
-          reject(new Error(`${why}; GM_download: ${e.message}`));
-        }
-      };
-      try {
-        GM_xmlhttpRequest({
-          method: "GET",
-          url: m.url,
-          responseType: "arraybuffer",
-          onload: (r) => {
-            if (r.status !== 200) return plain("HTTP " + r.status);
-            if (!r.response || !r.response.byteLength) return plain("empty response");
-            try {
-              saveTagged(r.response);
-            } catch (e) {
-              plain("tagging: " + e.message);
-            }
-          },
-          onerror: (e) => plain("network error " + ((e && e.error) || "")),
-          ontimeout: () => plain("timeout"),
-        });
-      } catch (e) {
-        plain("GM_xmlhttpRequest: " + e.message);
+          }),
+        );
+        return name;
       }
-      function saveTagged(buf) {
-        const bytes = tagMedia(buf, m.ext, mediaInfo(entry.tweet));
-        const blob = new Blob([bytes], { type: MIME[m.ext] || "application/octet-stream" });
-        try {
-          GM_download({
-            url: blob,
-            name,
-            saveAs: false,
-            onload: () => resolve(name),
-            onerror: (e) => {
-              console.warn(TAG, "GM_download failed, using anchor fallback", e);
-              viaAnchor(blob);
-            },
-          });
-        } catch {
-          viaAnchor(blob);
-        }
+    }
+    const tagged = tagMedia(bytes, m.ext, mediaInfo(entry.tweet));
+    const blob = new Blob([tagged], { type: MIME[m.ext] || "application/octet-stream" });
+    // Safari: GM_download copies the blob through extension messaging (slow), and an
+    // anchor works without a user gesture. Chrome blocks repeated anchor downloads
+    // made after an await, so use GM_download there.
+    if (IS_SAFARI) {
+      saveViaAnchor(blob, name);
+      return name;
+    }
+    await new Promise((resolve) => {
+      try {
+        GM_download({
+          url: blob,
+          name,
+          saveAs: false,
+          onload: resolve,
+          onerror: (e) => {
+            console.warn(TAG, "GM_download failed, using anchor fallback", e);
+            saveViaAnchor(blob, name);
+            resolve();
+          },
+        });
+      } catch {
+        saveViaAnchor(blob, name);
+        resolve();
       }
     });
+    return name;
+  }
+
+  function saveViaAnchor(blob, name) {
+    const a = document.createElement("a");
+    const href = URL.createObjectURL(blob);
+    a.href = href;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 60000);
   }
 
   // ---------------------------------------------------------------------------
@@ -703,13 +752,16 @@
           // Indexed tweet count tells whether the API capture works at all on this device.
           if (!entry) throw new Error(`media not found (indexed posts: ${tweets.size})`);
           b.title = fileName(entry);
-          await download(entry);
+          await download(entry, (f) => {
+            b.innerHTML = `<span>${Math.floor(f * 100)}%</span>`;
+          });
           b.dataset.state = "ok";
           b.innerHTML = CHECK + (label ? `<span>${label}</span>` : "");
         } catch (err) {
           console.warn(TAG, err);
           b.dataset.state = "err";
           b.title = "Failed: " + (err && err.message);
+          b.innerHTML = ICON + (label ? `<span>${label}</span>` : "");
         }
       },
       true,
