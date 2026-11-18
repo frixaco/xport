@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X Media Downloader (original quality)
 // @namespace    frixaco.x-media-downloader
-// @version      1.0.8
+// @version      1.0.9
 // @description  Per-item download buttons for photos, videos and GIFs on X (ex-Twitter): timelines, threads, quotes, retweets, carousels, sensitive media, media tab and photo viewer. Original quality.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
@@ -830,8 +830,10 @@
     };
   }
 
-  // Media tiles: photos/videos/GIFs, and click-to-play video previews.
-  const TILE = "[data-testid=tweetPhoto], [data-testid=previewInterstitial]";
+  // Media tiles: photos/videos/GIFs, and click-to-play video previews. iOS X
+  // renders a single video as a bare videoPlayer with no tweetPhoto wrapper.
+  const TILE =
+    "[data-testid=tweetPhoto], [data-testid=previewInterstitial], [data-testid=videoPlayer]";
   const done = new WeakSet();
   function attach(container) {
     if (done.has(container)) return;
