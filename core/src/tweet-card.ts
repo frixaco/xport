@@ -36,6 +36,13 @@ function isVideoUrl(urlString: string): boolean {
   return host === "video.twimg.com" || host === "ton.twimg.com";
 }
 
+// X serves pbs.twimg.com/media/<id>.<ext> downscaled; name=orig is the uploaded file.
+function toOriginalPhotoUrl(urlString: string): string {
+  const match = /^https?:\/\/pbs\.twimg\.com\/media\/([\w-]+)\.(\w+)(?:\?.*)?$/i.exec(urlString);
+  if (!match) return urlString;
+  return `https://pbs.twimg.com/media/${match[1]}?format=${match[2]}&name=orig`;
+}
+
 function addUniqueMedia(target: MediaItem[], item: MediaItem): void {
   if (target.some((existing) => existing.url === item.url)) return;
   target.push(item);
@@ -90,7 +97,7 @@ function extractTweetMedia(tweet: Record<string, unknown>): MediaItem[] {
     if (item.type === "photo" && isNonEmptyString(item.media_url_https)) {
       addUniqueMedia(media, {
         type: "image",
-        url: normalizeUrlCandidate(item.media_url_https),
+        url: toOriginalPhotoUrl(normalizeUrlCandidate(item.media_url_https)),
       });
       continue;
     }
